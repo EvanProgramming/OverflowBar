@@ -12,6 +12,7 @@ final class MenuBarItemStore: ObservableObject {
     private let activator = MenuBarItemActivator()
     private let layoutManager: MenuBarLayoutManager
     private var controlItemFrame: CGRect?
+    var onImagesReady: (() -> Void)?
 
     init() {
         layoutManager = MenuBarLayoutManager(preferences: preferences)
@@ -29,21 +30,25 @@ final class MenuBarItemStore: ObservableObject {
             layoutManager.isEnabled = true
             layoutManagementEnabled = true
             preferences.didApplyDefaultLayout = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.applyLayout() }
         }
-        refreshImages(for: items)
+        refreshImages(for: items) { [weak self] in self?.onImagesReady?() }
     }
 
     func setSelected(_ item: MenuBarItem, selected: Bool) {
         item.isSelected = selected
         objectWillChange.send()
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
-        applyLayout()
+        if selected { applyLayout() } else { layoutManager.show(item) }
     }
 
-    func selectAll(_ selected: Bool) { for item in items { item.isSelected = selected }; preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id))); objectWillChange.send(); applyLayout() }
+    func selectAll(_ selected: Bool) {
+        for item in items { item.isSelected = selected }
+        preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
+        objectWillChange.send()
+        if selected { applyLayout() } else { restoreLayout() }
+    }
 
-    func refreshImages(for target: [MenuBarItem]? = nil) {
+    func refreshImages(for target: [MenuBarItem]? = nil, completion: (() -> Void)? = nil) {
         let candidates = target ?? selectedItems
         Task { [weak self] in
             guard let self else { return }
@@ -52,6 +57,7 @@ final class MenuBarItemStore: ObservableObject {
                 self.items.first(where: { $0.id == item.id })?.iconImage = image
             }
             self.objectWillChange.send()
+            completion?()
         }
     }
 
@@ -75,8 +81,11 @@ final class MenuBarItemStore: ObservableObject {
     func activate(_ item: MenuBarItem) {
         if let controlItemFrame { layoutManager.reveal(item, relativeTo: controlItemFrame) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            guard let self, !self.activator.activate(item) else { return }
-            self.lastActivationError = "Unable to activate \(item.tooltip)."
+            guard let self else { return }
+            self.activator.activate(item) { [weak self] success in
+                guard let self, !success else { return }
+                self.lastActivationError = "Unable to activate \(item.tooltip)."
+            }
         }
     }
 }

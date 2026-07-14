@@ -1,4 +1,6 @@
 import AppKit
+import ApplicationServices
+import OSLog
 import SwiftUI
 
 @MainActor
@@ -10,9 +12,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Logger(subsystem: "com.overflowbar.app", category: "startup").info("Accessibility trusted: \(AXIsProcessTrusted(), privacy: .public)")
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.refresh()
+        if !permissions.screenRecordingGranted {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.permissions.requestScreenRecording()
+            }
+        }
         if !permissions.accessibilityGranted {
             permissions.requestAccessibility()
             permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
@@ -23,7 +31,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     timer.invalidate()
                     self.permissionTimer = nil
                     self.store.refresh()
-                    self.store.applyLayout()
                 }
             }
         }

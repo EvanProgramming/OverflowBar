@@ -3,6 +3,7 @@ import ApplicationServices
 
 /// Reads status items exposed through each running application's accessibility tree.
 final class MenuBarScanner {
+    private let excludedTitles = Set(["Clock", "Battery", "Siri", "BentoBox-0", "BentoBox", "OverflowBarControlItem"])
     func scan(selectedIDs: Set<String>) -> [MenuBarItem] {
         var results = scanWindowBackedItems(selectedIDs: selectedIDs)
         guard AXIsProcessTrusted() else { return results }
@@ -15,7 +16,7 @@ final class MenuBarScanner {
             for child in children {
                 guard let frame = frame(of: child), frame.width > 5, frame.height > 5, isOnRightSide(frame) else { continue }
                 let title = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
-                guard !title.isEmpty, !looksLikeTextMenu(title, frame: frame) else { continue }
+                guard !title.isEmpty, !excludedTitles.contains(title), !looksLikeTextMenu(title, frame: frame) else { continue }
                 let id = "\(bundleID)|\(title)"
                 let supportsPress = actionNames(child).contains(kAXPressAction as String)
                 guard !results.contains(where: { $0.frame.equalTo(frame) }) else { continue }
@@ -31,19 +32,25 @@ final class MenuBarScanner {
     private func scanWindowBackedItems(selectedIDs: Set<String>) -> [MenuBarItem] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-        let excludedTitles = Set(["Clock", "Battery", "Siri", "BentoBox-0", "OverflowBarControlItem"])
-        return windows.compactMap { window in
+        let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, frame: CGRect)] = windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                   let identifier = window[kCGWindowNumber as String] as? Int,
                   let ownerPID = window[kCGWindowOwnerPID as String] as? Int else { return nil }
+            guard ownerPID != Int(getpid()) else { return nil }
             let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
             guard !excludedTitles.contains(title) else { return nil }
             let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
-            guard frame.width > 4, frame.height > 4 else { return nil }
-            let id = "window|\(identifier)"
-            return MenuBarItem(id: id, title: title == "Item-0" ? "Menu Bar Item" : title, ownerName: owner, bundleIdentifier: nil, frame: frame, axElement: nil, isSelected: selectedIDs.contains(id), supportsPressAction: false, windowID: CGWindowID(identifier), ownerPID: pid_t(ownerPID))
+            guard frame.minY == 0, frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
+            return (identifier, ownerPID, title, owner, frame)
+        }
+        var occurrences: [String: Int] = [:]
+        return candidates.sorted { $0.frame.minX > $1.frame.minX }.map { candidate in
+            let occurrence = occurrences[candidate.title, default: 0]
+            occurrences[candidate.title] = occurrence + 1
+            let id = "window|\(candidate.title)|\(occurrence)"
+            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: candidate.owner, bundleIdentifier: nil, frame: candidate.frame, axElement: nil, isSelected: selectedIDs.contains(id), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID))
         }
     }
 
