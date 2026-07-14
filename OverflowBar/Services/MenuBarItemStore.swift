@@ -52,9 +52,9 @@ final class MenuBarItemStore: ObservableObject {
         let candidates = target ?? selectedItems
         Task { [weak self] in
             guard let self else { return }
-            for item in candidates {
-                let image = await self.captureService.capture(item)
-                self.items.first(where: { $0.id == item.id })?.iconImage = image
+            let images = await self.captureService.capture(candidates)
+            for (id, image) in images {
+                self.items.first(where: { $0.id == id })?.iconImage = image
             }
             self.objectWillChange.send()
             completion?()
