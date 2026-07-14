@@ -7,12 +7,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissions = PermissionManager()
     private var statusBarController: StatusBarController?
     private var settingsWindowController: NSWindowController?
+    private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.refresh()
-        if !permissions.accessibilityGranted { permissions.requestAccessibility() }
+        if !permissions.accessibilityGranted {
+            permissions.requestAccessibility()
+            permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+                Task { @MainActor in
+                    guard let self else { timer.invalidate(); return }
+                    self.permissions.refresh()
+                    guard self.permissions.accessibilityGranted else { return }
+                    timer.invalidate()
+                    self.permissionTimer = nil
+                    self.store.refresh()
+                    self.store.applyLayout()
+                }
+            }
+        }
     }
 
     private func showSettings() {
