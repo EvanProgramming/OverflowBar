@@ -8,12 +8,12 @@ final class MenuBarItem: Identifiable {
     let ownerName: String
     let bundleIdentifier: String?
     let frame: CGRect
-    let axElement: AXUIElement
+    let axElement: AXUIElement?
     let supportsPressAction: Bool
     var iconImage: NSImage?
     var isSelected: Bool
 
-    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement, iconImage: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool) {
+    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool) {
         self.id = id
         self.title = title
         self.ownerName = ownerName

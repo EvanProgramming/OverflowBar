@@ -4,9 +4,9 @@ import ApplicationServices
 /// Reads status items exposed through each running application's accessibility tree.
 final class MenuBarScanner {
     func scan(selectedIDs: Set<String>) -> [MenuBarItem] {
-        guard AXIsProcessTrusted() else { return [] }
+        var results = scanWindowBackedItems(selectedIDs: selectedIDs)
+        guard AXIsProcessTrusted() else { return results }
         let ownBundleID = Bundle.main.bundleIdentifier
-        var results: [MenuBarItem] = []
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .accessory || app.activationPolicy == .prohibited {
             guard let bundleID = app.bundleIdentifier, bundleID != ownBundleID else { continue }
             let application = AXUIElementCreateApplication(app.processIdentifier)
@@ -18,10 +18,32 @@ final class MenuBarScanner {
                 guard !title.isEmpty, !looksLikeTextMenu(title, frame: frame) else { continue }
                 let id = "\(bundleID)|\(title)"
                 let supportsPress = actionNames(child).contains(kAXPressAction as String)
+                guard !results.contains(where: { $0.frame.equalTo(frame) }) else { continue }
                 results.append(MenuBarItem(id: id, title: title, ownerName: app.localizedName ?? bundleID, bundleIdentifier: bundleID, frame: frame, axElement: child, isSelected: selectedIDs.contains(id), supportsPressAction: supportsPress))
             }
         }
         return results.sorted { $0.frame.minX < $1.frame.minX }
+    }
+
+    /// macOS 26 exposes most menu bar controls as Control Center-owned windows.
+    /// This public window-list fallback discovers those controls even when the
+    /// originating app does not publish an Accessibility menu-bar element.
+    private func scanWindowBackedItems(selectedIDs: Set<String>) -> [MenuBarItem] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+        let excludedTitles = Set(["Clock", "Battery", "Siri", "BentoBox-0"])
+        return windows.compactMap { window in
+            guard (window[kCGWindowLayer as String] as? Int) == 25,
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let identifier = window[kCGWindowNumber as String] as? Int else { return nil }
+            let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
+            guard !excludedTitles.contains(title) else { return nil }
+            let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
+            let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+            guard frame.width > 4, frame.height > 4 else { return nil }
+            let id = "window|\(identifier)"
+            return MenuBarItem(id: id, title: title == "Item-0" ? "Menu Bar Item" : title, ownerName: owner, bundleIdentifier: nil, frame: frame, axElement: nil, isSelected: selectedIDs.contains(id), supportsPressAction: false)
+        }
     }
 
     private func isOnRightSide(_ frame: CGRect) -> Bool {
