@@ -13,9 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.refresh()
         if !permissions.accessibilityGranted { permissions.requestAccessibility() }
-        if !permissions.screenRecordingGranted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.permissions.requestScreenRecording() }
-        }
     }
 
     private func showSettings() {
