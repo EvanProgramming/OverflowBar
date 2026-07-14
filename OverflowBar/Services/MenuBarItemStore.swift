@@ -12,6 +12,8 @@ final class MenuBarItemStore: ObservableObject {
     private let activator = MenuBarItemActivator()
     private let layoutManager: MenuBarLayoutManager
     private var controlItemFrame: CGRect?
+    private var rehideMonitor: Any?
+    private var rehideWorkItem: DispatchWorkItem?
     var onImagesReady: (() -> Void)?
 
     init() {
@@ -22,8 +24,18 @@ final class MenuBarItemStore: ObservableObject {
     var selectedItems: [MenuBarItem] { items.filter(\.isSelected) }
 
     func refresh() {
-        let selected = Set(items.filter(\.isSelected).map(\.id)).union(preferences.selectedIDs)
-        items = scanner.scan(selectedIDs: selected)
+        let isRescan = !items.isEmpty
+        let selectedWindowIDs = Set(items.filter(\.isSelected).compactMap(\.windowID))
+        let selected = isRescan
+            ? Set(items.filter { $0.isSelected && $0.windowID == nil }.map(\.id))
+            : preferences.selectedIDs
+        let scanned = scanner.scan(selectedIDs: selected)
+        if isRescan {
+            for item in scanned where item.windowID != nil {
+                item.isSelected = item.windowID.map(selectedWindowIDs.contains) == true
+            }
+        }
+        items = scanned
         if !preferences.didApplyDefaultLayout, !items.isEmpty {
             items.forEach { $0.isSelected = true }
             preferences.saveSelected(Set(items.map(\.id)))
@@ -79,13 +91,42 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func activate(_ item: MenuBarItem) {
-        if let controlItemFrame { layoutManager.reveal(item, relativeTo: controlItemFrame) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        cancelPendingRehide()
+        layoutManager.reveal(item) { [weak self] moved in
             guard let self else { return }
+            guard moved else {
+                self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
+                return
+            }
             self.activator.activate(item) { [weak self] success in
-                guard let self, !success else { return }
-                self.lastActivationError = "Unable to activate \(item.tooltip)."
+                guard let self else { return }
+                guard success else {
+                    self.layoutManager.rehide(item)
+                    self.lastActivationError = "Unable to activate \(item.tooltip)."
+                    return
+                }
+                self.rehideAfterNextUserClick(item)
             }
         }
+    }
+
+    private func rehideAfterNextUserClick(_ item: MenuBarItem) {
+        rehideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.finishTemporaryItem(item) }
+        }
+        let workItem = DispatchWorkItem { [weak self] in self?.finishTemporaryItem(item) }
+        rehideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: workItem)
+    }
+
+    private func finishTemporaryItem(_ item: MenuBarItem) {
+        cancelPendingRehide()
+        layoutManager.rehide(item)
+    }
+
+    private func cancelPendingRehide() {
+        if let rehideMonitor { NSEvent.removeMonitor(rehideMonitor); self.rehideMonitor = nil }
+        rehideWorkItem?.cancel()
+        rehideWorkItem = nil
     }
 }

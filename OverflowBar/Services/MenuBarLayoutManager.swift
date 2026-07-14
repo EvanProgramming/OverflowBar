@@ -23,7 +23,7 @@ final class MenuBarLayoutManager {
 
     func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect) {
         guard isEnabled else { return }
-        guard let target = controlTargetWindow() else {
+        guard let target = hiddenTargetWindow() else {
             logger.info("Control window pending; retrying")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
                 self?.hide(items, relativeTo: controlFrame)
@@ -38,14 +38,16 @@ final class MenuBarLayoutManager {
         }
     }
 
-    func reveal(_ item: MenuBarItem, relativeTo controlFrame: CGRect, rehideAfter delay: TimeInterval = 2) {
-        guard let target = controlTargetWindow() else { return }
-        move(item, relativeTo: target.id, placement: .right) { _ in }
-        guard isEnabled else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, let refreshedTarget = self.controlTargetWindow() else { return }
-            self.move(item, relativeTo: refreshedTarget.id, placement: .left) { _ in }
-        }
+    func reveal(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
+        guard let target = controlTargetWindow() else { completion(false); return }
+        // The hidden-section separator reaches the control item's left edge,
+        // so the only valid temporary visible slot is immediately to its right.
+        move(item, relativeTo: target.id, placement: .right, completion: completion)
+    }
+
+    func rehide(_ item: MenuBarItem, completion: @escaping (Bool) -> Void = { _ in }) {
+        guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
+        move(item, relativeTo: target.id, placement: .left, completion: completion)
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect) {
@@ -60,7 +62,7 @@ final class MenuBarLayoutManager {
 
     private func hideSequentially(_ items: [MenuBarItem], index: Int, completion: @escaping () -> Void) {
         guard index < items.count else { completion(); return }
-        guard let target = controlTargetWindow() else { completion(); return }
+        guard let target = hiddenTargetWindow() else { completion(); return }
         let item = items[index]
         move(item, relativeTo: target.id, placement: .left) { [weak self] _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
@@ -109,23 +111,34 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
-                        guard let self else { completion(false); return }
-                        let itemFrame = self.currentFrame(windowID: itemWindowID)
-                        let latestTargetFrame = self.currentFrame(windowID: targetWindowID)
-                        let moved: Bool
-                        switch placement {
-                        case .left: moved = itemFrame?.maxX == latestTargetFrame?.minX
-                        case .right: moved = itemFrame?.minX == latestTargetFrame?.maxX
-                        }
-                        self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=\(moved, privacy: .public)")
-                        if !moved, attempt < 3 {
-                            self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, completion: completion)
-                        } else {
-                            completion(moved)
-                        }
-                    }
+                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, completion: completion)
                 }
+            }
+        }
+    }
+
+    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, completion: @escaping (Bool) -> Void) {
+        guard let itemWindowID = item.windowID else { completion(false); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self else { completion(false); return }
+            let itemFrame = self.currentFrame(windowID: itemWindowID)
+            let targetFrame = self.currentFrame(windowID: targetWindowID)
+            let moved: Bool
+            switch placement {
+            case .left: moved = abs((itemFrame?.maxX ?? -.infinity) - (targetFrame?.minX ?? .infinity)) < 1
+            case .right: moved = abs((itemFrame?.minX ?? -.infinity) - (targetFrame?.maxX ?? .infinity)) < 1
+            }
+            if moved {
+                self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=true")
+                completion(true)
+            } else if check < 15 {
+                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, completion: completion)
+            } else if attempt < 3 {
+                self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) timed out")
+                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, completion: completion)
+            } else {
+                self.logger.info("Move verification window \(itemWindowID, privacy: .public) failed")
+                completion(false)
             }
         }
     }
@@ -167,6 +180,17 @@ final class MenuBarLayoutManager {
             return (newlyHostedStatusItem.id, newlyHostedStatusItem.frame)
         }
         return records.first(where: { $0.pid == getpid() }).map { ($0.id, $0.frame) }
+    }
+
+    private func hiddenTargetWindow() -> (id: CGWindowID, frame: CGRect)? {
+        let records = windowRecords()
+        if let hidden = records.first(where: { $0.title == "OverflowBarHiddenSection" }) {
+            return (hidden.id, hidden.frame)
+        }
+        return records
+            .filter { !initialWindowIDs.contains($0.id) && $0.frame.width > 1_000 }
+            .max(by: { $0.frame.width < $1.frame.width })
+            .map { ($0.id, $0.frame) }
     }
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? { windowRecords().first { $0.id == windowID }?.frame }
