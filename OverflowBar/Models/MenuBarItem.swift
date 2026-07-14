@@ -10,10 +10,12 @@ final class MenuBarItem: Identifiable {
     let frame: CGRect
     let axElement: AXUIElement?
     let supportsPressAction: Bool
+    let windowID: CGWindowID?
+    let ownerPID: pid_t?
     var iconImage: NSImage?
     var isSelected: Bool
 
-    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool) {
+    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool, windowID: CGWindowID? = nil, ownerPID: pid_t? = nil) {
         self.id = id
         self.title = title
         self.ownerName = ownerName
@@ -23,7 +25,20 @@ final class MenuBarItem: Identifiable {
         self.iconImage = iconImage
         self.isSelected = isSelected
         self.supportsPressAction = supportsPressAction
+        self.windowID = windowID
+        self.ownerPID = ownerPID
     }
 
     var tooltip: String { title.isEmpty ? ownerName : "\(ownerName) — \(title)" }
+
+    var fallbackSymbolName: String {
+        let value = title.lowercased()
+        if value.contains("audio") || value.contains("sound") { return "speaker.wave.2.fill" }
+        if value.contains("battery") { return "battery.75percent" }
+        if value.contains("wifi") { return "wifi" }
+        if value.contains("vpn") { return "lock.shield.fill" }
+        if value.contains("clock") { return "clock.fill" }
+        if value.contains("amphetamine") { return "bolt.fill" }
+        return "circle.grid.2x2.fill"
+    }
 }

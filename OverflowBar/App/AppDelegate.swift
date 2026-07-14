@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = MenuBarItemStore()
+    private let permissions = PermissionManager()
     private var statusBarController: StatusBarController?
     private var settingsWindowController: NSWindowController?
 
@@ -11,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.refresh()
+        if !permissions.accessibilityGranted { permissions.requestAccessibility() }
+        if !permissions.screenRecordingGranted {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.permissions.requestScreenRecording() }
+        }
     }
 
     private func showSettings() {

@@ -23,6 +23,14 @@ final class MenuBarItemStore: ObservableObject {
     func refresh() {
         let selected = Set(items.filter(\.isSelected).map(\.id)).union(preferences.selectedIDs)
         items = scanner.scan(selectedIDs: selected)
+        if !preferences.didApplyDefaultLayout, !items.isEmpty {
+            items.forEach { $0.isSelected = true }
+            preferences.saveSelected(Set(items.map(\.id)))
+            layoutManager.isEnabled = true
+            layoutManagementEnabled = true
+            preferences.didApplyDefaultLayout = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.applyLayout() }
+        }
         refreshImages(for: items)
     }
 
@@ -56,8 +64,7 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func applyLayout() {
-        guard let controlItemFrame else { return }
-        layoutManager.hide(selectedItems, relativeTo: controlItemFrame)
+        layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero)
     }
 
     func restoreLayout() {

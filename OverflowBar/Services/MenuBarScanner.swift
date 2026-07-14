@@ -31,18 +31,19 @@ final class MenuBarScanner {
     private func scanWindowBackedItems(selectedIDs: Set<String>) -> [MenuBarItem] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-        let excludedTitles = Set(["Clock", "Battery", "Siri", "BentoBox-0"])
+        let excludedTitles = Set(["Clock", "Battery", "Siri", "BentoBox-0", "OverflowBarControlItem"])
         return windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                  let identifier = window[kCGWindowNumber as String] as? Int else { return nil }
+                  let identifier = window[kCGWindowNumber as String] as? Int,
+                  let ownerPID = window[kCGWindowOwnerPID as String] as? Int else { return nil }
             let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
             guard !excludedTitles.contains(title) else { return nil }
             let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
             guard frame.width > 4, frame.height > 4 else { return nil }
             let id = "window|\(identifier)"
-            return MenuBarItem(id: id, title: title == "Item-0" ? "Menu Bar Item" : title, ownerName: owner, bundleIdentifier: nil, frame: frame, axElement: nil, isSelected: selectedIDs.contains(id), supportsPressAction: false)
+            return MenuBarItem(id: id, title: title == "Item-0" ? "Menu Bar Item" : title, ownerName: owner, bundleIdentifier: nil, frame: frame, axElement: nil, isSelected: selectedIDs.contains(id), supportsPressAction: false, windowID: CGWindowID(identifier), ownerPID: pid_t(ownerPID))
         }
     }
 

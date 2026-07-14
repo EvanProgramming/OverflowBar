@@ -19,21 +19,23 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
+        panel.isReleasedWhenClosed = false
         panel.delegate = self
         panel.contentView = NSHostingView(rootView: OverflowPanelView(store: store, onActivate: { [weak self] item in self?.store.activate(item) }))
+        panel.orderOut(nil)
     }
 
     func toggle(relativeTo button: NSStatusBarButton) { panel.isVisible ? close() : show(relativeTo: button) }
     func show(relativeTo button: NSStatusBarButton) {
+        guard !panel.isVisible else { return }
         store.refreshImages()
         let width = min(max(CGFloat(store.selectedItems.count) * 48 + 24, 120), 640)
         panel.setContentSize(.init(width: width, height: 54))
-        guard let window = button.window else { return }
-        let buttonFrame = window.convertToScreen(button.convert(button.bounds, to: nil))
+        guard let buttonFrame = button.overflowBarScreenFrame else { return }
         let screen = NSScreen.screens.first(where: { $0.frame.contains(CGPoint(x: buttonFrame.midX, y: buttonFrame.midY)) }) ?? NSScreen.main
         guard let screen else { return }
         let x = min(max(buttonFrame.midX - width / 2, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - width - 8)
-        panel.setFrameOrigin(.init(x: x, y: screen.visibleFrame.maxY - panel.frame.height - 2))
+        panel.setFrameOrigin(.init(x: x, y: buttonFrame.minY - panel.frame.height - 2))
         panel.orderFrontRegardless()
         onVisibilityChanged?(true)
         if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor) }
