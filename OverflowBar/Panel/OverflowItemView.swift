@@ -7,7 +7,7 @@ struct OverflowItemView: View {
         Button(action: action) {
             Group {
                 if let image = item.iconImage { Image(nsImage: image).resizable().scaledToFit() }
-                else { Image(nsImage: NSWorkspace.shared.icon(forFile: "/Applications")).resizable().scaledToFit().opacity(0.65) }
+                else { Image(systemName: item.fallbackSymbolName).resizable().scaledToFit().padding(4).opacity(0.75) }
             }.frame(width: 28, height: 24)
         }
         .buttonStyle(.plain)

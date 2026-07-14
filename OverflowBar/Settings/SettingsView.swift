@@ -12,7 +12,7 @@ struct SettingsView: View {
                 Button("Refresh Permission Status") { permissions.refresh() }
             }
             Section("Menu Bar Layout") {
-                Toggle("Experimental: hide selected original icons", isOn: Binding(get: { store.layoutManagementEnabled }, set: { store.setLayoutManagementEnabled($0) }))
+                Toggle("Hide selected original icons", isOn: Binding(get: { store.layoutManagementEnabled }, set: { store.setLayoutManagementEnabled($0) }))
                 Text("Selected icons are Command-dragged to the left of the OverflowBar arrow. They are shown in the second row and temporarily restored when clicked.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
