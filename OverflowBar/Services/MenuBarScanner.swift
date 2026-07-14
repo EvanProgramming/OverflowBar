@@ -30,7 +30,9 @@ final class MenuBarScanner {
     /// This public window-list fallback discovers those controls even when the
     /// originating app does not publish an Accessibility menu-bar element.
     private func scanWindowBackedItems(selectedIDs: Set<String>) -> [MenuBarItem] {
-        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        // Hidden-section items are deliberately moved offscreen. They must
+        // remain in the settings and overflow panel when either is refreshed.
+        let options: CGWindowListOption = [.excludeDesktopElements]
         let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
         let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, frame: CGRect)] = windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,

@@ -2,7 +2,6 @@ import AppKit
 import ApplicationServices
 
 final class MenuBarItemActivator {
-    private var relays: [MenuBarEventRelay] = []
     /// Uses AXPress first, then falls back to an accessibility-authorized mouse click.
     func activate(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
         if let axElement = item.axElement, item.supportsPressAction, AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success {
@@ -13,11 +12,12 @@ final class MenuBarItemActivator {
            let source = CGEventSource(stateID: .hidSystemState),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source) {
-            relay(down, to: ownerPID) { [weak self] success in
-                guard success else { completion(false); return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                    self?.relay(up, to: ownerPID, completion: completion)
-                }
+            let cursorLocation = CGEvent(source: nil)?.location
+            down.post(tap: .cgSessionEventTap)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                up.post(tap: .cgSessionEventTap)
+                if let cursorLocation { CGWarpMouseCursorPosition(cursorLocation) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { completion(true) }
             }
             return
         }
@@ -29,17 +29,6 @@ final class MenuBarItemActivator {
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
         completion(true)
-    }
-
-    private func relay(_ event: CGEvent, to pid: pid_t, completion: @escaping (Bool) -> Void) {
-        var relay: MenuBarEventRelay?
-        relay = MenuBarEventRelay(event: event, pid: pid) { [weak self] success in
-            if let relay { self?.relays.removeAll { $0 === relay } }
-            completion(success)
-        }
-        guard let relay else { completion(false); return }
-        relays.append(relay)
-        relay.start()
     }
 
     private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource) -> CGEvent? {
