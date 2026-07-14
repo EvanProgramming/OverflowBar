@@ -11,6 +11,16 @@ struct SettingsView: View {
                 permissionRow("Screen Recording", granted: permissions.screenRecordingGranted, open: permissions.openScreenRecordingSettings, request: permissions.requestScreenRecording)
                 Button("Refresh Permission Status") { permissions.refresh() }
             }
+            Section("Menu Bar Layout") {
+                Toggle("Experimental: hide selected original icons", isOn: Binding(get: { store.layoutManagementEnabled }, set: { store.setLayoutManagementEnabled($0) }))
+                Text("Selected icons are Command-dragged to the left of the OverflowBar arrow. They are shown in the second row and temporarily restored when clicked.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Apply Hidden Layout") { store.applyLayout() }.disabled(!store.layoutManagementEnabled || store.selectedItems.isEmpty)
+                    Button("Restore All Managed Icons") { store.restoreLayout() }.disabled(store.selectedItems.isEmpty)
+                }
+            }
             Section {
                 HStack {
                     Text("Menu Bar Items")
