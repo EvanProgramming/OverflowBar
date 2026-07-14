@@ -28,7 +28,6 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
     func toggle(relativeTo button: NSStatusBarButton) { panel.isVisible ? close() : show(relativeTo: button) }
     func show(relativeTo button: NSStatusBarButton) {
         guard !panel.isVisible else { return }
-        store.refreshImages()
         let width = min(max(CGFloat(store.selectedItems.count) * 48 + 24, 120), 640)
         panel.setContentSize(.init(width: width, height: 54))
         guard let buttonFrame = button.overflowBarScreenFrame else { return }

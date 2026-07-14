@@ -2,23 +2,42 @@ import AppKit
 
 @MainActor
 final class StatusBarController: NSObject {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private let statusItem: NSStatusItem
+    private let hiddenSectionItem: NSStatusItem
     private let store: MenuBarItemStore
     private let panelController: OverflowPanelController
     private let showSettings: () -> Void
     private var mouseMonitor: Any?
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
+        let defaults = UserDefaults.standard
+        let arrowName = "OverflowBarControlItem"
+        let hiddenName = "OverflowBarHiddenSection"
+        // Migrate any positions left by earlier builds. Position 0 is the
+        // right-most app-owned slot; the expanding hidden delimiter is slot 1.
+        defaults.set(0.0, forKey: "NSStatusItem Preferred Position \(arrowName)")
+        defaults.set(1.0, forKey: "NSStatusItem Preferred Position \(hiddenName)")
+        defaults.set(true, forKey: "NSStatusItem Visible \(arrowName)")
+        defaults.set(true, forKey: "NSStatusItem Visible \(hiddenName)")
+        statusItem = NSStatusBar.system.statusItem(withLength: 0)
+        statusItem.autosaveName = arrowName
+        hiddenSectionItem = NSStatusBar.system.statusItem(withLength: 0)
+        hiddenSectionItem.autosaveName = hiddenName
         self.store = store
         self.showSettings = showSettings
         panelController = OverflowPanelController(store: store)
         super.init()
+        store.onImagesReady = { [weak self] in
+            self?.hiddenSectionItem.length = 10_000
+        }
         let button = statusItem.button
-        statusItem.autosaveName = "OverflowBarControlItem"
+        statusItem.length = NSStatusItem.squareLength
         button?.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: "Show OverflowBar")
         button?.target = self
         button?.action = #selector(togglePanel)
         button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        hiddenSectionItem.button?.image = nil
+        hiddenSectionItem.button?.cell?.isEnabled = false
         panelController.onVisibilityChanged = { [weak self] isVisible in
             self?.statusItem.button?.image = NSImage(systemSymbolName: isVisible ? "chevron.up" : "chevron.down", accessibilityDescription: isVisible ? "Hide OverflowBar" : "Show OverflowBar")
         }

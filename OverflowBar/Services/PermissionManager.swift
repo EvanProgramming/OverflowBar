@@ -1,9 +1,12 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import ScreenCaptureKit
+import OSLog
 
 @MainActor
 final class PermissionManager: ObservableObject {
+    private let logger = Logger(subsystem: "com.overflowbar.app", category: "permissions")
     @Published private(set) var accessibilityGranted = false
     @Published private(set) var screenRecordingGranted = false
 
@@ -20,8 +23,13 @@ final class PermissionManager: ObservableObject {
     }
 
     func requestScreenRecording() {
-        _ = CGRequestScreenCaptureAccess()
-        refresh()
+        Task {
+            // Enumerating shareable content is the supported macOS 15+ request
+            // path and also registers this app in Privacy settings.
+            _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+            refresh()
+            logger.info("Screen recording granted after request: \(self.screenRecordingGranted, privacy: .public)")
+        }
     }
 
     func openAccessibilitySettings() { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }

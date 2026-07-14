@@ -3,7 +3,7 @@ import Foundation
 final class PreferencesStore {
     private let selectedKeys = "selectedMenuBarItems"
     private let layoutManagementKey = "layoutManagementEnabled"
-    private let defaultLayoutKey = "didApplyDefaultLayoutV2"
+    private let defaultLayoutKey = "didApplyDefaultLayoutV4"
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
