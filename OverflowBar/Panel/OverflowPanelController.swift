@@ -5,6 +5,7 @@ import SwiftUI
 final class OverflowPanelController: NSObject, NSWindowDelegate {
     private let panel: NSPanel
     private let store: MenuBarItemStore
+    private var globalEventMonitor: Any?
     var onVisibilityChanged: ((Bool) -> Void)?
 
     init(store: MenuBarItemStore) {
@@ -35,9 +36,15 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         panel.setFrameOrigin(.init(x: x, y: screen.visibleFrame.maxY - panel.frame.height - 2))
         panel.orderFrontRegardless()
         onVisibilityChanged?(true)
-        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.close() }
+        if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor) }
+        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.close() }
     }
 
-    func close() { guard panel.isVisible else { return }; panel.orderOut(nil); onVisibilityChanged?(false) }
+    func close() {
+        guard panel.isVisible else { return }
+        if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor); self.globalEventMonitor = nil }
+        panel.orderOut(nil)
+        onVisibilityChanged?(false)
+    }
     func windowDidResignKey(_ notification: Notification) { close() }
 }
