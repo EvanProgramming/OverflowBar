@@ -3,7 +3,8 @@ import ApplicationServices
 
 /// Reads status items exposed through each running application's accessibility tree.
 final class MenuBarScanner {
-    private let excludedTitles = Set(["Clock", "Battery", "Siri", "WiFi", "BentoBox-0", "BentoBox", "OverflowBarControlItem", "OverflowBarHiddenSection"])
+    private let protectedSystemTitles = Set(["Clock", "Battery", "Siri", "WiFi", "BentoBox-0", "BentoBox"])
+    private let excludedTitles = Set(["OverflowBarControlItem", "OverflowBarHiddenSection"])
     func scan(selectedIDs: Set<String>) -> [MenuBarItem] {
         var results = scanWindowBackedItems(selectedIDs: selectedIDs)
         guard AXIsProcessTrusted() else { return results }
@@ -18,22 +19,24 @@ final class MenuBarScanner {
                       isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
                 let title = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
                 let matchingIndex = results.firstIndex(where: { framesMatch($0.frame, frame) })
-                if title.isEmpty || excludedTitles.contains(title) || looksLikeTextMenu(title, frame: frame) {
-                    if let matchingIndex { results.remove(at: matchingIndex) }
+                if title.isEmpty || excludedTitles.contains(title) || (!protectedSystemTitles.contains(title) && looksLikeTextMenu(title, frame: frame)) {
+                    if let matchingIndex, !results[matchingIndex].isProtectedSystemItem { results.remove(at: matchingIndex) }
                     continue
                 }
-                let id = "\(bundleID)|\(title)"
+                let isProtected = protectedSystemTitles.contains(title)
+                let id = isProtected ? "system|\(title)" : "\(bundleID)|\(title)"
                 let supportsPress = actionNames(child).contains(kAXPressAction as String)
                 if let matchingIndex {
                     let existing = results[matchingIndex]
                     existing.axElement = child
                     existing.supportsPressAction = supportsPress
+                    if existing.isProtectedSystemItem { continue }
                     existing.title = title
                     existing.ownerName = app.localizedName ?? bundleID
                     existing.bundleIdentifier = bundleID
                     continue
                 }
-                results.append(MenuBarItem(id: id, title: title, ownerName: app.localizedName ?? bundleID, bundleIdentifier: bundleID, frame: frame, axElement: child, isSelected: selectedIDs.contains(id), supportsPressAction: supportsPress))
+                results.append(MenuBarItem(id: id, title: title, ownerName: isProtected ? "System Menu Bar" : (app.localizedName ?? bundleID), bundleIdentifier: bundleID, frame: frame, axElement: child, isSelected: !isProtected && selectedIDs.contains(id), supportsPressAction: supportsPress, isProtectedSystemItem: isProtected))
             }
         }
         return results.sorted { $0.frame.minX < $1.frame.minX }
@@ -69,9 +72,10 @@ final class MenuBarScanner {
             occurrences[occurrenceKey] = occurrence + 1
             let legacyOccurrence = legacyOccurrences[candidate.title, default: 0]
             legacyOccurrences[candidate.title] = legacyOccurrence + 1
-            let id = "window|\(candidate.ownerKey)|\(candidate.title)|\(occurrence)"
+            let isProtected = protectedSystemTitles.contains(candidate.title)
+            let id = isProtected ? "system|\(candidate.title)" : "window|\(candidate.ownerKey)|\(candidate.title)|\(occurrence)"
             let legacyID = "window|\(candidate.title)|\(legacyOccurrence)"
-            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, isSelected: selectedIDs.contains(id) || selectedIDs.contains(legacyID), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID))
+            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: isProtected ? "System Menu Bar" : candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, isSelected: !isProtected && (selectedIDs.contains(id) || selectedIDs.contains(legacyID)), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID), isProtectedSystemItem: isProtected)
         }
     }
 
