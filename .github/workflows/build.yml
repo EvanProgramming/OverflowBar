@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate metadata and scripts
+        run: |
+          plutil -lint OverflowBar/Resources/Info.plist
+          bash -n scripts/create-dmg.sh
+      - name: Build Debug
+        run: >-
+          xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar
+          -configuration Debug -destination 'generic/platform=macOS'
+          -derivedDataPath .ci-build CODE_SIGNING_ALLOWED=NO build
+      - name: Build Release
+        run: >-
+          xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar
+          -configuration Release -destination 'generic/platform=macOS'
+          -derivedDataPath .ci-release CODE_SIGNING_ALLOWED=NO build

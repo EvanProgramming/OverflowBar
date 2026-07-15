@@ -7,6 +7,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
     private let store: MenuBarItemStore
     private let presentation = OverflowPanelPresentationState()
     private var globalEventMonitor: Any?
+    private var localEventMonitor: Any?
     private var screenObserver: NSObjectProtocol?
     private var closeWorkItem: DispatchWorkItem?
     private weak var anchorButton: NSStatusBarButton?
@@ -64,11 +65,17 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             DispatchQueue.main.async { self?.close() }
         }
+        if let localEventMonitor { NSEvent.removeMonitor(localEventMonitor) }
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            DispatchQueue.main.async { self?.close() }
+            return event
+        }
     }
 
     func close() {
         guard panel.isVisible else { return }
         if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor); self.globalEventMonitor = nil }
+        if let localEventMonitor { NSEvent.removeMonitor(localEventMonitor); self.localEventMonitor = nil }
         onVisibilityChanged?(false)
         withAnimation(reduceMotion ? .easeOut(duration: 0.08) : .easeInOut(duration: 0.14)) {
             presentation.isPresented = false
@@ -85,6 +92,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
 
     deinit {
         if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor) }
+        if let localEventMonitor { NSEvent.removeMonitor(localEventMonitor) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         closeWorkItem?.cancel()
     }

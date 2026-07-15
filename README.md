@@ -29,9 +29,11 @@ The artifact and its SHA-256 checksum are written to `dist/`.
 ## Permissions
 
 - **Accessibility** permits OverflowBar to discover accessible right-side menu bar controls and invoke their `AXPress` action. If an item does not offer that action, macOS accessibility permission is also needed for the mouse-click fallback.
-- **Screen Recording** permits a low-frequency capture of each selected control so the overflow panel can show its actual current icon. Captures occur when the panel/settings refresh, not continuously.
+- **Screen Recording** permits a low-frequency capture of each selected control through ScreenCaptureKit so the overflow panel can show its actual current icon. Captures occur when the panel/settings refresh, not continuously.
 
 Open the corresponding System Settings pane from OverflowBar's Settings window. The app stays functional without permissions, but scanning, capture, or activation is unavailable as applicable.
+
+If a layout operation does not complete as expected, open Settings and use **Safe Reset**. OverflowBar also attempts to restore managed icons before a normal quit.
 
 ## V1 scope and limitations
 

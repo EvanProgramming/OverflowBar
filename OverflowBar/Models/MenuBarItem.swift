@@ -4,9 +4,9 @@ import ApplicationServices
 /// Accessibility-backed description of one right-side menu bar control.
 final class MenuBarItem: Identifiable {
     let id: String
-    let title: String
-    let ownerName: String
-    let bundleIdentifier: String?
+    var title: String
+    var ownerName: String
+    var bundleIdentifier: String?
     let frame: CGRect
     var axElement: AXUIElement?
     var supportsPressAction: Bool

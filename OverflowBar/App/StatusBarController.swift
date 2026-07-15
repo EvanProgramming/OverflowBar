@@ -8,6 +8,7 @@ final class StatusBarController: NSObject {
     private let panelController: OverflowPanelController
     private let showSettings: () -> Void
     private var mouseMonitor: Any?
+    private var hoverWorkItem: DispatchWorkItem?
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
         let defaults = UserDefaults.standard
@@ -27,9 +28,8 @@ final class StatusBarController: NSObject {
         self.showSettings = showSettings
         panelController = OverflowPanelController(store: store)
         super.init()
-        store.onImagesReady = { [weak self] in
-            self?.hiddenSectionItem.length = 10_000
-        }
+        store.onImagesReady = { [weak self] in self?.updateHiddenSectionLength() }
+        store.onLayoutStateChanged = { [weak self] in self?.updateHiddenSectionLength() }
         let button = statusItem.button
         statusItem.length = NSStatusItem.squareLength
         button?.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: "Show OverflowBar")
@@ -38,18 +38,36 @@ final class StatusBarController: NSObject {
         button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         hiddenSectionItem.button?.image = nil
         hiddenSectionItem.button?.cell?.isEnabled = false
+        updateHiddenSectionLength()
         panelController.onVisibilityChanged = { [weak self] isVisible in
             self?.statusItem.button?.image = NSImage(systemSymbolName: isVisible ? "chevron.up" : "chevron.down", accessibilityDescription: isVisible ? "Hide OverflowBar" : "Show OverflowBar")
         }
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            guard let self, let screen = NSScreen.screens.first(where: { $0.frame.contains(event.locationInWindow) }),
+            guard let self else { return }
+            guard self.hoverRevealEnabled,
+                  let screen = NSScreen.screens.first(where: { $0.frame.contains(event.locationInWindow) }),
                   event.locationInWindow.y >= screen.frame.maxY - NSStatusBar.system.thickness - 2,
-                  let button = self.statusItem.button else { return }
-            self.panelController.show(relativeTo: button)
+                  let button = self.statusItem.button else {
+                self.hoverWorkItem?.cancel()
+                self.hoverWorkItem = nil
+                return
+            }
+            guard self.hoverWorkItem == nil else { return }
+            let workItem = DispatchWorkItem { [weak self, weak button] in
+                guard let self, let button else { return }
+                self.hoverWorkItem = nil
+                self.storeControlItemFrame(for: button)
+                self.panelController.show(relativeTo: button)
+            }
+            self.hoverWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
         }
         DispatchQueue.main.async { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
             self.storeControlItemFrame(for: button)
+            if self.store.layoutManagementEnabled {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self.store.applyLayout() }
+            }
             if ProcessInfo.processInfo.arguments.contains("--show-panel") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.panelController.show(relativeTo: button)
@@ -58,7 +76,12 @@ final class StatusBarController: NSObject {
         }
     }
 
-    deinit { if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) } }
+    deinit {
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
+        hoverWorkItem?.cancel()
+    }
+
+    func prepareForTermination() { hiddenSectionItem.length = 0 }
 
     @objc private func togglePanel() {
         if NSApp.currentEvent?.type == .rightMouseUp { showSettings(); return }
@@ -69,6 +92,15 @@ final class StatusBarController: NSObject {
 
     private func storeControlItemFrame(for button: NSStatusBarButton) {
         if let frame = button.overflowBarScreenFrame { store.updateControlItemFrame(frame) }
+    }
+
+    private func updateHiddenSectionLength() {
+        hiddenSectionItem.length = store.layoutManagementEnabled && !store.selectedItems.isEmpty ? 10_000 : 0
+    }
+
+    private var hoverRevealEnabled: Bool {
+        let defaults = UserDefaults.standard
+        return defaults.object(forKey: "hoverRevealEnabled") == nil || defaults.bool(forKey: "hoverRevealEnabled")
     }
 }
 
