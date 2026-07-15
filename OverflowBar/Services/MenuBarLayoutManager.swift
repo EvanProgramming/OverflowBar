@@ -22,20 +22,26 @@ final class MenuBarLayoutManager {
         set { preferences.layoutManagementEnabled = newValue }
     }
 
-    func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect) {
-        guard isEnabled else { return }
+    func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int = 0, completion: @escaping (Int) -> Void = { _ in }) {
+        guard isEnabled else { completion(0); return }
         guard let target = hiddenTargetWindow() else {
-            logger.info("Control window pending; retrying")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                self?.hide(items, relativeTo: controlFrame)
+            guard targetAttempt < 10 else {
+                logger.error("Hidden-section target did not appear after bounded retries")
+                completion(0)
+                return
+            }
+            logger.info("Control window pending; retrying attempt \(targetAttempt + 1, privacy: .public)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                self?.hide(items, relativeTo: controlFrame, targetAttempt: targetAttempt + 1, completion: completion)
             }
             return
         }
         logger.info("Hiding \(items.count, privacy: .public) items relative to window \(target.id, privacy: .public)")
         let managed = items.filter { $0.windowID != target.id }
         publishCurrentFrames(for: managed)
-        hideSequentially(managed, index: 0) { [weak self] in
+        hideSequentially(managed, index: 0, movedCount: 0) { [weak self] movedCount in
             self?.publishCurrentFrames(for: managed)
+            completion(movedCount)
         }
     }
 
@@ -51,9 +57,9 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .left, completion: completion)
     }
 
-    func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect) {
-        guard let target = controlTargetWindow() else { return }
-        restoreSequentially(Array(items.reversed()), index: 0, target: target)
+    func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
+        guard let target = controlTargetWindow() else { completion(0); return }
+        restoreSequentially(Array(items.reversed()), index: 0, target: target, movedCount: 0, completion: completion)
     }
 
     func show(_ item: MenuBarItem) {
@@ -61,10 +67,14 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .left) { _ in }
     }
 
-    func restoreProtectedSystemItems() {
+    func restoreProtectedSystemItems(attempt: Int = 0) {
         guard let target = controlTargetWindow() else {
+            guard attempt < 10 else {
+                logger.error("Control target unavailable while restoring protected items")
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.restoreProtectedSystemItems()
+                self?.restoreProtectedSystemItems(attempt: attempt + 1)
             }
             return
         }
@@ -74,13 +84,13 @@ final class MenuBarLayoutManager {
         restoreProtectedSequentially(hidden, index: 0, target: target)
     }
 
-    private func hideSequentially(_ items: [MenuBarItem], index: Int, completion: @escaping () -> Void) {
-        guard index < items.count else { completion(); return }
-        guard let target = hiddenTargetWindow() else { completion(); return }
+    private func hideSequentially(_ items: [MenuBarItem], index: Int, movedCount: Int, completion: @escaping (Int) -> Void) {
+        guard index < items.count else { completion(movedCount); return }
+        guard let target = hiddenTargetWindow() else { completion(movedCount); return }
         let item = items[index]
-        move(item, relativeTo: target.id, placement: .left) { [weak self] _ in
+        move(item, relativeTo: target.id, placement: .left) { [weak self] moved in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                self?.hideSequentially(items, index: index + 1, completion: completion)
+                self?.hideSequentially(items, index: index + 1, movedCount: movedCount + (moved ? 1 : 0), completion: completion)
             }
         }
     }
@@ -92,13 +102,16 @@ final class MenuBarLayoutManager {
         onHiddenFramesChanged?(frames)
     }
 
-    private func restoreSequentially(_ items: [MenuBarItem], index: Int, target: (id: CGWindowID, frame: CGRect)) {
-        guard index < items.count else { return }
+    private func restoreSequentially(_ items: [MenuBarItem], index: Int, target: (id: CGWindowID, frame: CGRect), movedCount: Int, completion: @escaping (Int) -> Void) {
+        guard index < items.count else { completion(movedCount); return }
         let item = items[index]
-        move(item, relativeTo: target.id, placement: .left) { [weak self] _ in
+        move(item, relativeTo: target.id, placement: .left) { [weak self] moved in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                guard let refreshed = self?.controlTargetWindow() else { return }
-                self?.restoreSequentially(items, index: index + 1, target: refreshed)
+                guard let self, let refreshed = self.controlTargetWindow() else {
+                    completion(movedCount + (moved ? 1 : 0))
+                    return
+                }
+                self.restoreSequentially(items, index: index + 1, target: refreshed, movedCount: movedCount + (moved ? 1 : 0), completion: completion)
             }
         }
     }

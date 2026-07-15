@@ -4,3 +4,5 @@
 DerivedData/
 /.release-build/
 /dist/
+/.ci-build/
+/.ci-release/

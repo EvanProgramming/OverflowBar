@@ -6,6 +6,7 @@ final class MenuBarItemStore: ObservableObject {
     @Published private(set) var items: [MenuBarItem] = []
     @Published var lastActivationError: String?
     @Published private(set) var layoutManagementEnabled = false
+    @Published private(set) var layoutOperationMessage: String?
     private let preferences = PreferencesStore()
     private let scanner = MenuBarScanner()
     private let captureService = MenuBarCaptureService()
@@ -15,6 +16,8 @@ final class MenuBarItemStore: ObservableObject {
     private var rehideMonitor: Any?
     private var rehideWorkItem: DispatchWorkItem?
     var onImagesReady: (() -> Void)?
+    var onLayoutStateChanged: (() -> Void)?
+    private var captureGeneration = 0
 
     init() {
         layoutManager = MenuBarLayoutManager(preferences: preferences)
@@ -39,10 +42,11 @@ final class MenuBarItemStore: ObservableObject {
         if !preferences.didApplyDefaultLayout, !items.isEmpty {
             items.forEach { $0.isSelected = true }
             preferences.saveSelected(Set(items.map(\.id)))
-            layoutManager.isEnabled = true
-            layoutManagementEnabled = true
+            layoutManager.isEnabled = false
+            layoutManagementEnabled = false
             preferences.didApplyDefaultLayout = true
         }
+        onLayoutStateChanged?()
         refreshImages(for: items) { [weak self] in self?.onImagesReady?() }
     }
 
@@ -51,6 +55,7 @@ final class MenuBarItemStore: ObservableObject {
         objectWillChange.send()
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
         if selected { applyLayout() } else { layoutManager.show(item) }
+        onLayoutStateChanged?()
     }
 
     func selectAll(_ selected: Bool) {
@@ -58,13 +63,17 @@ final class MenuBarItemStore: ObservableObject {
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
         objectWillChange.send()
         if selected { applyLayout() } else { restoreLayout() }
+        onLayoutStateChanged?()
     }
 
     func refreshImages(for target: [MenuBarItem]? = nil, completion: (() -> Void)? = nil) {
+        captureGeneration += 1
+        let generation = captureGeneration
         let candidates = target ?? selectedItems
         Task { [weak self] in
             guard let self else { return }
             let images = await self.captureService.capture(candidates)
+            guard generation == self.captureGeneration else { return }
             for (id, image) in images {
                 self.items.first(where: { $0.id == id })?.iconImage = image
             }
@@ -78,16 +87,41 @@ final class MenuBarItemStore: ObservableObject {
     func setLayoutManagementEnabled(_ enabled: Bool) {
         layoutManager.isEnabled = enabled
         layoutManagementEnabled = enabled
-        if enabled { applyLayout() } else { restoreLayout() }
+        onLayoutStateChanged?()
+        if enabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in self?.applyLayout() }
+        } else {
+            restoreLayout()
+        }
     }
 
     func applyLayout() {
-        layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero)
+        guard layoutManagementEnabled, !selectedItems.isEmpty else { return }
+        layoutOperationMessage = "Applying hidden layout…"
+        layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero) { [weak self] count in
+            self?.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
+        }
     }
 
-    func restoreLayout() {
-        guard let controlItemFrame else { return }
-        layoutManager.restore(selectedItems, relativeTo: controlItemFrame)
+    func restoreLayout(completion: @escaping () -> Void = {}) {
+        guard let controlItemFrame else { completion(); return }
+        layoutOperationMessage = "Restoring menu bar items…"
+        layoutManager.restore(selectedItems, relativeTo: controlItemFrame) { [weak self] count in
+            self?.layoutOperationMessage = count > 0 ? "Restored \(count) menu bar items." : "Menu bar items are already visible."
+            completion()
+        }
+    }
+
+    func restoreAllAndDisable() {
+        layoutManager.isEnabled = false
+        layoutManagementEnabled = false
+        onLayoutStateChanged?()
+        restoreLayout()
+    }
+
+    func prepareForTermination(completion: @escaping () -> Void) {
+        captureGeneration += 1
+        restoreLayout(completion: completion)
     }
 
     func restoreProtectedSystemItems() {

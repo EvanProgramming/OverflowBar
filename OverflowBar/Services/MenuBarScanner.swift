@@ -17,12 +17,20 @@ final class MenuBarScanner {
                 guard let frame = frame(of: child), frame.width > 5, frame.height > 5,
                       isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
                 let title = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
-                guard !title.isEmpty, !excludedTitles.contains(title), !looksLikeTextMenu(title, frame: frame) else { continue }
+                let matchingIndex = results.firstIndex(where: { framesMatch($0.frame, frame) })
+                if title.isEmpty || excludedTitles.contains(title) || looksLikeTextMenu(title, frame: frame) {
+                    if let matchingIndex { results.remove(at: matchingIndex) }
+                    continue
+                }
                 let id = "\(bundleID)|\(title)"
                 let supportsPress = actionNames(child).contains(kAXPressAction as String)
-                if let existing = results.first(where: { framesMatch($0.frame, frame) }) {
+                if let matchingIndex {
+                    let existing = results[matchingIndex]
                     existing.axElement = child
                     existing.supportsPressAction = supportsPress
+                    existing.title = title
+                    existing.ownerName = app.localizedName ?? bundleID
+                    existing.bundleIdentifier = bundleID
                     continue
                 }
                 results.append(MenuBarItem(id: id, title: title, ownerName: app.localizedName ?? bundleID, bundleIdentifier: bundleID, frame: frame, axElement: child, isSelected: selectedIDs.contains(id), supportsPressAction: supportsPress))
@@ -39,7 +47,7 @@ final class MenuBarScanner {
         // remain in the settings and overflow panel when either is refreshed.
         let options: CGWindowListOption = [.excludeDesktopElements]
         let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-        let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, frame: CGRect)] = windows.compactMap { window in
+        let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, ownerKey: String, frame: CGRect)] = windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                   let identifier = window[kCGWindowNumber as String] as? Int,
@@ -48,26 +56,48 @@ final class MenuBarScanner {
             let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
             guard !excludedTitles.contains(title) else { return nil }
             let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
+            let ownerKey = NSRunningApplication(processIdentifier: pid_t(ownerPID))?.bundleIdentifier ?? owner
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
-            guard frame.minY == 0, frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
-            return (identifier, ownerPID, title, owner, frame)
+            guard isMenuBarWindowFrame(frame), frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
+            return (identifier, ownerPID, title, owner, ownerKey, frame)
         }
         var occurrences: [String: Int] = [:]
+        var legacyOccurrences: [String: Int] = [:]
         return candidates.sorted { $0.frame.minX > $1.frame.minX }.map { candidate in
-            let occurrence = occurrences[candidate.title, default: 0]
-            occurrences[candidate.title] = occurrence + 1
-            let id = "window|\(candidate.title)|\(occurrence)"
-            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: candidate.owner, bundleIdentifier: nil, frame: candidate.frame, axElement: nil, isSelected: selectedIDs.contains(id), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID))
+            let occurrenceKey = "\(candidate.ownerKey)|\(candidate.title)"
+            let occurrence = occurrences[occurrenceKey, default: 0]
+            occurrences[occurrenceKey] = occurrence + 1
+            let legacyOccurrence = legacyOccurrences[candidate.title, default: 0]
+            legacyOccurrences[candidate.title] = legacyOccurrence + 1
+            let id = "window|\(candidate.ownerKey)|\(candidate.title)|\(occurrence)"
+            let legacyID = "window|\(candidate.title)|\(legacyOccurrence)"
+            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, isSelected: selectedIDs.contains(id) || selectedIDs.contains(legacyID), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID))
         }
     }
 
     private func isOnRightSide(_ frame: CGRect) -> Bool {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(frame) }) else { return false }
-        return frame.midX > screen.frame.midX && frame.maxY >= screen.frame.maxY - 32
+        guard let display = displayBounds().first(where: { $0.intersects(frame) }) else { return false }
+        return frame.midX > display.midX && abs(frame.minY - display.minY) <= 2
     }
 
     private func isHiddenMenuBarFrame(_ frame: CGRect) -> Bool {
         frame.maxX <= 0 && frame.minY >= 0 && frame.maxY <= 40
+    }
+
+    private func isMenuBarWindowFrame(_ frame: CGRect) -> Bool {
+        if isHiddenMenuBarFrame(frame) { return true }
+        return displayBounds().contains { display in
+            abs(frame.minY - display.minY) <= 2 &&
+                frame.maxX > display.minX && frame.minX < display.maxX
+        }
+    }
+
+    private func displayBounds() -> [CGRect] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).map(CGDisplayBounds)
     }
 
     private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {

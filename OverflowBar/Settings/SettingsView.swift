@@ -5,6 +5,7 @@ struct SettingsView: View {
     var showOnboarding: () -> Void = {}
     @StateObject private var permissions = PermissionManager()
     @StateObject private var launchAtLogin = LaunchAtLoginManager()
+    @AppStorage("hoverRevealEnabled") private var hoverRevealEnabled = true
 
     var body: some View {
         Form {
@@ -13,6 +14,7 @@ struct SettingsView: View {
                     get: { launchAtLogin.isEnabled },
                     set: { launchAtLogin.setEnabled($0) }
                 ))
+                Toggle("Reveal when the pointer reaches the menu bar", isOn: $hoverRevealEnabled)
                 Button("Run Welcome Setup Again", action: showOnboarding)
                 Button("Quit OverflowBar", role: .destructive) { NSApp.terminate(nil) }
                 if let error = launchAtLogin.errorMessage {
@@ -32,6 +34,10 @@ struct SettingsView: View {
                 HStack {
                     Button("Apply Hidden Layout") { store.applyLayout() }.disabled(!store.layoutManagementEnabled || store.selectedItems.isEmpty)
                     Button("Restore All Managed Icons") { store.restoreLayout() }.disabled(store.selectedItems.isEmpty)
+                    Button("Safe Reset", role: .destructive) { store.restoreAllAndDisable() }.disabled(store.selectedItems.isEmpty)
+                }
+                if let message = store.layoutOperationMessage {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section {

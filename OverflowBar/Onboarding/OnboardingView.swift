@@ -3,11 +3,24 @@ import SwiftUI
 struct OnboardingView: View {
     @ObservedObject var store: MenuBarItemStore
     @ObservedObject var permissions: PermissionManager
-    let onComplete: () -> Void
+    let onComplete: (Bool) -> Void
 
     @StateObject private var launchAtLogin = LaunchAtLoginManager()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step: Step = .welcome
+    @State private var hideSelectedIcons: Bool
+
+    init(
+        store: MenuBarItemStore,
+        permissions: PermissionManager,
+        initialHideSelectedIcons: Bool,
+        onComplete: @escaping (Bool) -> Void
+    ) {
+        self.store = store
+        self.permissions = permissions
+        self.onComplete = onComplete
+        _hideSelectedIcons = State(initialValue: initialHideSelectedIcons)
+    }
 
     private enum Step: Int, CaseIterable {
         case welcome, permissions, customize, ready
@@ -184,10 +197,7 @@ struct OnboardingView: View {
 
                 Divider().padding(.leading, 18)
 
-                Toggle("Hide selected icons from the original menu bar", isOn: Binding(
-                    get: { store.layoutManagementEnabled },
-                    set: { store.setLayoutManagementEnabled($0) }
-                ))
+                Toggle("Hide selected icons from the original menu bar", isOn: $hideSelectedIcons)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 13)
             }
@@ -268,7 +278,7 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
             }
             Button(step == .ready ? "Start Using OverflowBar" : "Continue") {
-                if step == .ready { onComplete() }
+                if step == .ready { onComplete(hideSelectedIcons) }
                 else { move(to: step.rawValue + 1) }
             }
             .buttonStyle(.borderedProminent)

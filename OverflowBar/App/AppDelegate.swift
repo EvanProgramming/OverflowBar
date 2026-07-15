@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var settingsWindowController: NSWindowController?
     private var onboardingWindowController: NSWindowController?
+    private var isFinishingTermination = false
+    private var didReplyToTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger(subsystem: "com.overflowbar.app", category: "startup").info("Accessibility trusted: \(AXIsProcessTrusted(), privacy: .public)")
@@ -22,6 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if preferences.hasCompletedOnboarding {
             store.refresh()
         } else {
+            DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
+        }
+        if ProcessInfo.processInfo.arguments.contains("--show-settings") {
+            DispatchQueue.main.async { [weak self] in self?.showSettings() }
+        } else if ProcessInfo.processInfo.arguments.contains("--show-onboarding") {
             DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
         }
     }
@@ -61,7 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.contentView = NSHostingView(rootView: OnboardingView(
                 store: store,
                 permissions: permissions,
-                onComplete: { [weak self] in self?.completeOnboarding() }
+                initialHideSelectedIcons: preferences.hasCompletedOnboarding ? store.layoutManagementEnabled : true,
+                onComplete: { [weak self] hideSelectedIcons in self?.completeOnboarding(hideSelectedIcons: hideSelectedIcons) }
             ))
             window.center()
             let controller = NSWindowController(window: window)
@@ -71,10 +79,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func completeOnboarding() {
+    private func completeOnboarding(hideSelectedIcons: Bool) {
         preferences.hasCompletedOnboarding = true
         store.refresh()
+        store.setLayoutManagementEnabled(hideSelectedIcons)
         onboardingWindowController?.close()
         onboardingWindowController = nil
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard store.layoutManagementEnabled, !store.selectedItems.isEmpty else { return .terminateNow }
+        guard !isFinishingTermination else { return .terminateLater }
+        isFinishingTermination = true
+        didReplyToTermination = false
+        statusBarController?.prepareForTermination()
+        store.prepareForTermination { [weak self, weak sender] in
+            guard let sender else { return }
+            self?.replyToTermination(sender)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self, weak sender] in
+            guard let sender else { return }
+            self?.replyToTermination(sender)
+        }
+        return .terminateLater
+    }
+
+    private func replyToTermination(_ sender: NSApplication) {
+        guard !didReplyToTermination else { return }
+        didReplyToTermination = true
+        sender.reply(toApplicationShouldTerminate: true)
     }
 }
