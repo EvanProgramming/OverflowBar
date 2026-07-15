@@ -5,12 +5,19 @@ struct OverflowItemView: View {
     let action: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             Group {
-                if let image = item.iconImage { Image(nsImage: image).resizable().scaledToFit() }
+                if let image = item.iconImage {
+                    Image(nsImage: image)
+                        .renderingMode(colorScheme == .dark ? .template : .original)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(colorScheme == .dark ? Color.white : Color.primary)
+                }
                 else { Image(systemName: item.fallbackSymbolName).resizable().scaledToFit().padding(4).opacity(0.75) }
             }
             .frame(width: 26, height: 20)
