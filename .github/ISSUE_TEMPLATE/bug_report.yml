@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible OverflowBar problem
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve OverflowBar. Please remove private information from screenshots and logs.
+  - type: input
+    id: version
+    attributes:
+      label: OverflowBar version
+      placeholder: "1.0.3"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.4"
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac and display setup
+      placeholder: "MacBook Air M3, built-in display plus one external monitor"
+    validations:
+      required: true
+  - type: input
+    id: source_app
+    attributes:
+      label: Affected menu bar app
+      placeholder: "App name and version, or System Menu Bar"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks completed
+      options:
+        - label: I reproduced this on the latest release.
+          required: true
+        - label: I tried Settings → Safe Reset.
+          required: true
+        - label: I removed private information from attachments.
+          required: true
+

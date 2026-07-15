@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a focused improvement to OverflowBar
+title: "[Feature]: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What recurring workflow or limitation should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: Describe the user-facing behavior rather than only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - Discovery and icons
+        - Second-row interaction
+        - Layout management
+        - Activation
+        - Onboarding and settings
+        - Distribution and updates
+        - Other
+    validations:
+      required: true
+

@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup help and ideas
+    url: https://github.com/EvanProgramming/OverflowBar/discussions
+    about: Ask questions and discuss early ideas before filing a scoped issue.
+  - name: Security report
+    url: https://github.com/EvanProgramming/OverflowBar/security/policy
+    about: Follow the private security reporting instructions.
+

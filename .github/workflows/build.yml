@@ -14,6 +14,7 @@ jobs:
         run: |
           plutil -lint OverflowBar/Resources/Info.plist
           bash -n scripts/create-dmg.sh
+          ruby scripts/check-doc-links.rb
       - name: Build Debug
         run: >-
           xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar

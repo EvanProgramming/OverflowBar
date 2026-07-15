@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate tag and app version
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' OverflowBar/Resources/Info.plist)
+          test "${GITHUB_REF_NAME}" = "v${app_version}"
+          plutil -lint OverflowBar/Resources/Info.plist
+          bash -n scripts/create-dmg.sh
+
+      - name: Build release DMG
+        run: ./scripts/create-dmg.sh
+
+      - name: Verify release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          hdiutil verify "dist/OverflowBar-${version}.dmg"
+          (cd dist && shasum -a 256 -c "OverflowBar-${version}.dmg.sha256")
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/OverflowBar-${version}.dmg" \
+            "dist/OverflowBar-${version}.dmg.sha256" \
+            --title "OverflowBar ${version}" \
+            --notes-file RELEASE_NOTES.md \
+            --verify-tag

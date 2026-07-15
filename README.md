@@ -1,42 +1,101 @@
 # OverflowBar
 
-A native macOS 15+ menu-bar overflow panel for notch-equipped Macs. It mirrors selected, accessibility-exposed status icons beneath the menu bar and forwards activation to the original item.
+> **A fluid second row for your macOS menu bar.**
 
-## Install
+[![Latest release](https://img.shields.io/github/v/release/EvanProgramming/OverflowBar?display_name=tag&sort=semver)](https://github.com/EvanProgramming/OverflowBar/releases/latest)
+[![Build](https://github.com/EvanProgramming/OverflowBar/actions/workflows/build.yml/badge.svg)](https://github.com/EvanProgramming/OverflowBar/actions/workflows/build.yml)
+![macOS 15+](https://img.shields.io/badge/macOS-15%2B-111827?logo=apple)
+![Swift](https://img.shields.io/badge/Swift-Native-F05138?logo=swift&logoColor=white)
 
-Download the latest `OverflowBar-*.dmg` from [GitHub Releases](https://github.com/EvanProgramming/OverflowBar/releases), open it, and drag OverflowBar into Applications. The first launch presents a guided setup for Accessibility, Screen Recording, login launch, and choosing menu bar items.
+![OverflowBar demo: click the menu bar arrow to reveal hidden status items in a fluid second row](assets/overflowbar-demo.gif)
 
-The current community build is ad-hoc signed because the project does not yet have a Developer ID certificate or Apple notarization. macOS may require **Control-click → Open** on the first launch. A notarized build will replace it once release signing is configured.
+OverflowBar keeps a crowded Mac menu bar tidy by moving selected status items behind one persistent arrow, then revealing them in a fast, native second row whenever you need them.
 
-## Original-icon layout mode
+**[Download the latest DMG](https://github.com/EvanProgramming/OverflowBar/releases/latest)** · [Installation](docs/INSTALLATION.md) · [User guide](docs/USAGE.md) · [Roadmap](docs/ROADMAP.md)
 
-OverflowBar also includes an opt-in, experimental layout mode modeled on menu-bar managers: selected original icons are Command-dragged to the left of the OverflowBar arrow, forming a hidden section. The arrow stays on the visible side of that divider; the second row provides a compact way to access the hidden items. When an item is chosen, OverflowBar temporarily returns the original item to the visible section, invokes it, and re-hides it after a short delay.
+## Why OverflowBar?
 
-Critical macOS controls—including Wi-Fi, Battery, Siri, Control Center, and Clock—are discovered separately and kept visible. Settings identifies these controls with an **Always Visible** lock, and every layout operation restores them if an earlier build or interrupted operation left them offscreen.
+- **More room, less clutter** — choose which third-party status items stay behind the OverflowBar arrow.
+- **Instant access** — click the arrow or move the pointer to the menu bar to reveal the second row.
+- **Real menu bar controls** — icons are captured from the live status items; selecting one activates its original control.
+- **Native macOS design** — Liquid Glass on macOS 26+, with a lightweight material treatment on macOS 15.
+- **System controls stay safe** — Wi-Fi, Battery, Siri, Control Center, and Clock remain visible and are restored if a previous layout left them offscreen.
+- **Built for real displays** — respects safe areas, notches, multiple displays, full-screen spaces, and reduced-motion settings.
 
-Enable this only from **Settings → Menu Bar Layout**, then use **Apply Hidden Layout**. **Restore All Managed Icons** moves managed items back to the visible side. This changes the user's menu-bar arrangement and is deliberately never performed automatically. It requires Accessibility permission and may need adaptation for future macOS releases.
+## Quick start
 
-## Run
+1. Download `OverflowBar-*.dmg` from the [latest release](https://github.com/EvanProgramming/OverflowBar/releases/latest).
+2. Drag **OverflowBar** into **Applications**.
+3. Open it and complete the guided Accessibility and Screen Recording setup.
+4. Right-click the OverflowBar arrow to choose the items you want to manage.
+5. Enable **Hide selected original icons**, then click the arrow to reveal the second row.
 
-Open `OverflowBar.xcodeproj` in Xcode 16 or later, choose the `OverflowBar` scheme, and run it. The app is an accessory app, so it has no Dock icon; use the chevron in the menu bar and open its Settings scene from the app menu if needed.
+The current community build is ad-hoc signed and not yet Apple-notarized. On first launch, macOS may require **Control-click → Open**. See the [installation guide](docs/INSTALLATION.md#first-launch-and-gatekeeper) for details.
 
-To create the Apple Silicon release DMG locally:
+## Documentation
+
+| Guide | What it covers |
+| --- | --- |
+| [Installation](docs/INSTALLATION.md) | Requirements, permissions, updating, uninstalling, and Gatekeeper |
+| [User guide](docs/USAGE.md) | Selecting items, second-row interaction, hover reveal, reset, and troubleshooting |
+| [Architecture](docs/ARCHITECTURE.md) | Scanner, capture pipeline, layout engine, activation flow, and platform boundaries |
+| [Roadmap](docs/ROADMAP.md) | Current priorities and planned releases |
+| [Contributing](CONTRIBUTING.md) | Local setup, development workflow, testing, and pull requests |
+| [Releasing](docs/RELEASING.md) | Versioning, release checklist, DMG generation, and cadence |
+| [Changelog](CHANGELOG.md) | User-visible changes by version |
+| [Privacy](PRIVACY.md) | Local capture and permission behavior |
+| [Security](SECURITY.md) | Supported versions and responsible disclosure |
+
+## How it works
+
+OverflowBar combines public macOS Accessibility APIs, WindowServer metadata, ScreenCaptureKit, SwiftUI, and AppKit:
+
+1. It discovers right-side status items and associates Accessibility elements with their menu bar windows.
+2. It captures each selected item's current icon locally.
+3. It uses the same user-facing Command-drag behavior as manual menu bar reordering to place managed items in a hidden section.
+4. The second row displays cached copies of those icons.
+5. Selecting an icon invokes `AXPress` when available, or briefly reveals and activates the original item before hiding it again.
+
+For component details and data flow, read [Architecture](docs/ARCHITECTURE.md).
+
+## Requirements
+
+- macOS 15 Sequoia or later
+- Apple Silicon for the downloadable community DMG
+- Accessibility permission for discovery, activation, and managed layout
+- Screen Recording permission for live icon capture
+
+## Build from source
+
+Open `OverflowBar.xcodeproj` in Xcode 16 or later and run the `OverflowBar` scheme, or build from Terminal:
+
+```bash
+xcodebuild \
+  -project OverflowBar.xcodeproj \
+  -scheme OverflowBar \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build
+```
+
+Create an Apple Silicon release DMG with:
 
 ```bash
 ./scripts/create-dmg.sh
 ```
 
-The artifact and its SHA-256 checksum are written to `dist/`.
+Artifacts and a SHA-256 checksum are written to `dist/`.
 
-## Permissions
+## Project status
 
-- **Accessibility** permits OverflowBar to discover accessible right-side menu bar controls and invoke their `AXPress` action. If an item does not offer that action, macOS accessibility permission is also needed for the mouse-click fallback.
-- **Screen Recording** permits a low-frequency capture of each selected control so the overflow panel can show its actual current icon. OverflowBar uses ScreenCaptureKit first and an isolated Core Graphics compatibility path only for offscreen menu bar windows that ScreenCaptureKit cannot capture on macOS 26. Captures occur when the panel/settings refresh, not continuously.
+OverflowBar is an early public release. The core discover, hide, reveal, and activate flow works on macOS 15 and macOS 26, but menu bar management relies on OS behavior that Apple does not expose as a dedicated public API. Compatibility work is therefore an ongoing priority.
 
-Open the corresponding System Settings pane from OverflowBar's Settings window. The app stays functional without permissions, but scanning, capture, or activation is unavailable as applicable.
+If something does not behave correctly, use **Settings → Safe Reset** before quitting and file a [bug report](https://github.com/EvanProgramming/OverflowBar/issues/new?template=bug_report.yml).
 
-If a layout operation does not complete as expected, open Settings and use **Safe Reset**. OverflowBar also attempts to restore managed icons before a normal quit.
+## Community
 
-## V1 scope and limitations
+- Use [GitHub Discussions](https://github.com/EvanProgramming/OverflowBar/discussions) for ideas, setup help, and show-and-tell.
+- Use [Issues](https://github.com/EvanProgramming/OverflowBar/issues) for reproducible bugs and scoped feature requests.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-The scanner deliberately uses public Accessibility and window-list APIs. Apps that do not expose enough status-item information may not be mirrored. Layout mode uses macOS's user-facing Command-drag behaviour for status-item arrangement; it is an experimental compatibility feature, not an App Store target.
+If OverflowBar improves your Mac setup, starring the repository helps other macOS users discover it.
