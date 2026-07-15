@@ -6,6 +6,7 @@ import OSLog
 /// The physical mouse cursor is never moved.
 final class MenuBarLayoutManager {
     private enum Placement { case left, right }
+    private let protectedSystemTitles = Set(["Battery", "Siri", "WiFi", "Clock", "BentoBox-0", "BentoBox"])
     private let logger = Logger(subsystem: "com.overflowbar.app", category: "layout")
     private let preferences: PreferencesStore
     private let initialWindowIDs: Set<CGWindowID>
@@ -60,6 +61,19 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .left) { _ in }
     }
 
+    func restoreProtectedSystemItems() {
+        guard let target = controlTargetWindow() else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.restoreProtectedSystemItems()
+            }
+            return
+        }
+        let hidden = windowRecords().filter {
+            protectedSystemTitles.contains($0.title) && $0.frame.maxX <= 0
+        }
+        restoreProtectedSequentially(hidden, index: 0, target: target)
+    }
+
     private func hideSequentially(_ items: [MenuBarItem], index: Int, completion: @escaping () -> Void) {
         guard index < items.count else { completion(); return }
         guard let target = hiddenTargetWindow() else { completion(); return }
@@ -85,6 +99,29 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
                 guard let refreshed = self?.controlTargetWindow() else { return }
                 self?.restoreSequentially(items, index: index + 1, target: refreshed)
+            }
+        }
+    }
+
+    private func restoreProtectedSequentially(_ records: [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)], index: Int, target: (id: CGWindowID, frame: CGRect)) {
+        guard index < records.count else { return }
+        let record = records[index]
+        let item = MenuBarItem(
+            id: "protected|\(record.title)",
+            title: record.title,
+            ownerName: "System Menu Bar",
+            bundleIdentifier: nil,
+            frame: record.frame,
+            axElement: nil,
+            isSelected: false,
+            supportsPressAction: false,
+            windowID: record.id,
+            ownerPID: record.pid
+        )
+        move(item, relativeTo: target.id, placement: .right) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                guard let refreshed = self?.controlTargetWindow() else { return }
+                self?.restoreProtectedSequentially(records, index: index + 1, target: refreshed)
             }
         }
     }

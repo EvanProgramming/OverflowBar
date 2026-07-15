@@ -90,6 +90,10 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.restore(selectedItems, relativeTo: controlItemFrame)
     }
 
+    func restoreProtectedSystemItems() {
+        layoutManager.restoreProtectedSystemItems()
+    }
+
     func activate(_ item: MenuBarItem) {
         cancelPendingRehide()
         if activator.canActivateDirectly(item) {
