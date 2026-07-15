@@ -8,8 +8,8 @@ final class MenuBarItem: Identifiable {
     let ownerName: String
     let bundleIdentifier: String?
     let frame: CGRect
-    let axElement: AXUIElement?
-    let supportsPressAction: Bool
+    var axElement: AXUIElement?
+    var supportsPressAction: Bool
     let windowID: CGWindowID?
     let ownerPID: pid_t?
     var iconImage: NSImage?

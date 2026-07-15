@@ -14,12 +14,17 @@ final class MenuBarScanner {
             guard let menuBar = elementAttribute(application, kAXMenuBarAttribute as CFString),
                   let children = arrayAttribute(menuBar, kAXChildrenAttribute as CFString) else { continue }
             for child in children {
-                guard let frame = frame(of: child), frame.width > 5, frame.height > 5, isOnRightSide(frame) else { continue }
+                guard let frame = frame(of: child), frame.width > 5, frame.height > 5,
+                      isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
                 let title = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
                 guard !title.isEmpty, !excludedTitles.contains(title), !looksLikeTextMenu(title, frame: frame) else { continue }
                 let id = "\(bundleID)|\(title)"
                 let supportsPress = actionNames(child).contains(kAXPressAction as String)
-                guard !results.contains(where: { $0.frame.equalTo(frame) }) else { continue }
+                if let existing = results.first(where: { framesMatch($0.frame, frame) }) {
+                    existing.axElement = child
+                    existing.supportsPressAction = supportsPress
+                    continue
+                }
                 results.append(MenuBarItem(id: id, title: title, ownerName: app.localizedName ?? bundleID, bundleIdentifier: bundleID, frame: frame, axElement: child, isSelected: selectedIDs.contains(id), supportsPressAction: supportsPress))
             }
         }
@@ -59,6 +64,16 @@ final class MenuBarScanner {
     private func isOnRightSide(_ frame: CGRect) -> Bool {
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(frame) }) else { return false }
         return frame.midX > screen.frame.midX && frame.maxY >= screen.frame.maxY - 32
+    }
+
+    private func isHiddenMenuBarFrame(_ frame: CGRect) -> Bool {
+        frame.maxX <= 0 && frame.minY >= 0 && frame.maxY <= 40
+    }
+
+    private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let horizontalOverlap = max(0, min(lhs.maxX, rhs.maxX) - max(lhs.minX, rhs.minX))
+        return horizontalOverlap >= min(lhs.width, rhs.width) * 0.5 &&
+            lhs.minY < 40 && rhs.minY < 40
     }
 
     private func looksLikeTextMenu(_ title: String, frame: CGRect) -> Bool { title.count > 18 || frame.width > 150 }

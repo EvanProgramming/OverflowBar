@@ -92,13 +92,24 @@ final class MenuBarItemStore: ObservableObject {
 
     func activate(_ item: MenuBarItem) {
         cancelPendingRehide()
+        if activator.canActivateDirectly(item) {
+            activator.activateDirectly(item) { [weak self] success in
+                guard let self else { return }
+                if !success { self.activateByTemporarilyRevealing(item) }
+            }
+            return
+        }
+        activateByTemporarilyRevealing(item)
+    }
+
+    private func activateByTemporarilyRevealing(_ item: MenuBarItem) {
         layoutManager.reveal(item) { [weak self] moved in
             guard let self else { return }
             guard moved else {
                 self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
                 return
             }
-            self.activator.activate(item) { [weak self] success in
+            self.activator.activateMovedItem(item) { [weak self] success in
                 guard let self else { return }
                 guard success else {
                     self.layoutManager.rehide(item)
