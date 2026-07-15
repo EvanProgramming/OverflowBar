@@ -97,7 +97,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         let usableFrame = usableFrame(for: screen)
         guard !usableFrame.isNull, usableFrame.width > 0, usableFrame.height > 0 else { return false }
 
-        let desiredWidth = max(CGFloat(store.selectedItems.count) * OverflowPanelView.itemSlotWidth + 20, 120)
+        let desiredWidth = max(CGFloat(store.selectedItems.count) * OverflowPanelView.itemSlotWidth + 16, 104)
         let maximumWidth = max(96, min(720, usableFrame.width - 16))
         let width = min(desiredWidth, maximumWidth)
         let height = OverflowPanelView.preferredHeight

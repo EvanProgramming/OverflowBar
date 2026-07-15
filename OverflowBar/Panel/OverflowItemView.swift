@@ -13,15 +13,15 @@ struct OverflowItemView: View {
                 if let image = item.iconImage { Image(nsImage: image).resizable().scaledToFit() }
                 else { Image(systemName: item.fallbackSymbolName).resizable().scaledToFit().padding(4).opacity(0.75) }
             }
-            .frame(width: 28, height: 24)
-            .padding(5)
+            .frame(width: 26, height: 20)
+            .padding(3)
             .background {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(.primary.opacity(isHovering ? 0.085 : 0))
             }
         }
         .buttonStyle(OverflowItemButtonStyle(reduceMotion: reduceMotion))
-        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onHover { hovering in
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { isHovering = hovering }
         }
