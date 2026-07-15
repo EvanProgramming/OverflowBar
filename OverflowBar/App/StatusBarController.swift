@@ -9,6 +9,7 @@ final class StatusBarController: NSObject {
     private let showSettings: () -> Void
     private var mouseMonitor: Any?
     private var hoverWorkItem: DispatchWorkItem?
+    private var didApplyInitialLayout = false
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
         let defaults = UserDefaults.standard
@@ -28,7 +29,14 @@ final class StatusBarController: NSObject {
         self.showSettings = showSettings
         panelController = OverflowPanelController(store: store)
         super.init()
-        store.onImagesReady = { [weak self] in self?.updateHiddenSectionLength() }
+        store.onImagesReady = { [weak self] in
+            guard let self else { return }
+            self.updateHiddenSectionLength()
+            if !self.didApplyInitialLayout {
+                self.didApplyInitialLayout = true
+                if self.store.layoutManagementEnabled { self.store.applyLayout() }
+            }
+        }
         store.onLayoutStateChanged = { [weak self] in self?.updateHiddenSectionLength() }
         let button = statusItem.button
         statusItem.length = NSStatusItem.squareLength
@@ -65,9 +73,6 @@ final class StatusBarController: NSObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
             self.storeControlItemFrame(for: button)
-            if self.store.layoutManagementEnabled {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self.store.applyLayout() }
-            }
             if ProcessInfo.processInfo.arguments.contains("--show-panel") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.panelController.show(relativeTo: button)
@@ -95,7 +100,7 @@ final class StatusBarController: NSObject {
     }
 
     private func updateHiddenSectionLength() {
-        hiddenSectionItem.length = store.layoutManagementEnabled && !store.selectedItems.isEmpty ? 10_000 : 0
+        hiddenSectionItem.length = store.isReadyForManagedLayout && store.layoutManagementEnabled && !store.selectedItems.isEmpty ? 10_000 : 0
     }
 
     private var hoverRevealEnabled: Bool {

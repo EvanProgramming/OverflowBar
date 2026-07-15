@@ -48,6 +48,9 @@ struct SettingsView: View {
                     Button("Select All") { store.selectAll(true) }.disabled(store.items.isEmpty)
                     Button("Deselect All") { store.selectAll(false) }.disabled(store.items.isEmpty)
                 }
+                if let message = store.iconCaptureMessage {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                }
                 if !permissions.accessibilityGranted { Text("Enable Accessibility to scan and activate menu bar items.").foregroundStyle(.secondary) }
                 ForEach(store.items) { item in
                     Toggle(isOn: Binding(get: { item.isSelected }, set: { store.setSelected(item, selected: $0) })) {

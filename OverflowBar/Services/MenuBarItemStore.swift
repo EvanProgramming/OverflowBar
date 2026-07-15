@@ -7,6 +7,8 @@ final class MenuBarItemStore: ObservableObject {
     @Published var lastActivationError: String?
     @Published private(set) var layoutManagementEnabled = false
     @Published private(set) var layoutOperationMessage: String?
+    @Published private(set) var iconCaptureMessage: String?
+    @Published private(set) var isReadyForManagedLayout = false
     private let preferences = PreferencesStore()
     private let scanner = MenuBarScanner()
     private let captureService = MenuBarCaptureService()
@@ -28,11 +30,17 @@ final class MenuBarItemStore: ObservableObject {
 
     func refresh() {
         let isRescan = !items.isEmpty
+        let previousImages = Dictionary(uniqueKeysWithValues: items.compactMap { item in
+            item.windowID.flatMap { windowID in item.iconImage.map { (windowID, $0) } }
+        })
         let selectedWindowIDs = Set(items.filter(\.isSelected).compactMap(\.windowID))
         let selected = isRescan
             ? Set(items.filter { $0.isSelected && $0.windowID == nil }.map(\.id))
             : preferences.selectedIDs
         let scanned = scanner.scan(selectedIDs: selected)
+        for item in scanned {
+            item.iconImage = item.windowID.flatMap { previousImages[$0] }
+        }
         if isRescan {
             for item in scanned where item.windowID != nil {
                 item.isSelected = item.windowID.map(selectedWindowIDs.contains) == true
@@ -47,7 +55,11 @@ final class MenuBarItemStore: ObservableObject {
             preferences.didApplyDefaultLayout = true
         }
         onLayoutStateChanged?()
-        refreshImages(for: items) { [weak self] in self?.onImagesReady?() }
+        refreshImages(for: items) { [weak self] in
+            guard let self else { return }
+            self.onLayoutStateChanged?()
+            self.onImagesReady?()
+        }
     }
 
     func setSelected(_ item: MenuBarItem, selected: Bool) {
@@ -77,6 +89,10 @@ final class MenuBarItemStore: ObservableObject {
             for (id, image) in images {
                 self.items.first(where: { $0.id == id })?.iconImage = image
             }
+            self.iconCaptureMessage = candidates.isEmpty
+                ? nil
+                : "Captured \(images.count) of \(candidates.count) menu bar icons."
+            self.isReadyForManagedLayout = self.selectedItems.allSatisfy { $0.iconImage != nil }
             self.objectWillChange.send()
             completion?()
         }
@@ -97,6 +113,10 @@ final class MenuBarItemStore: ObservableObject {
 
     func applyLayout() {
         guard layoutManagementEnabled, !selectedItems.isEmpty else { return }
+        guard isReadyForManagedLayout else {
+            layoutOperationMessage = "Hidden layout paused until every selected icon can be captured."
+            return
+        }
         layoutOperationMessage = "Applying hidden layout…"
         layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero) { [weak self] count in
             self?.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."

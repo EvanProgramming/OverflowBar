@@ -1,34 +1,37 @@
-# OverflowBar 1.0.1
+# OverflowBar 1.0.2
 
-OverflowBar 1.0.1 is a safety and reliability update for Apple Silicon Macs running macOS 15 or later.
+OverflowBar 1.0.2 fixes the menu bar icon capture regression introduced in 1.0.1.
 
-## Improvements
+## Fixes
 
-- The hidden-section spacer is now active only when layout management is enabled and at least one item is selected.
-- First-run setup no longer changes the menu bar before the user finishes customization.
-- Managed icons are restored before a normal app quit, with a bounded timeout to avoid blocking shutdown.
-- Added **Safe Reset** to restore managed icons and disable layout management in one action.
-- Replaced the private window screenshot symbol with the public ScreenCaptureKit screenshot API.
-- Added multi-display menu bar discovery based on Core Graphics display bounds.
-- Prevented stale asynchronous icon captures from overwriting a newer scan.
-- Added bounded retries and visible layout operation feedback.
-- Improved Accessibility metadata matching and filtering of protected system controls.
-- Added a configurable, debounced hover-to-reveal behavior.
-- Added same-app outside-click handling for the overflow panel.
-- Added GitHub Actions builds plus privacy and security documentation.
+- Fixed menu bar items appearing as generic placeholders instead of their real icons.
+- Cache visible icons before expanding the managed hidden section at launch.
+- Added a compatibility capture path for offscreen layer-25 menu bar windows that ScreenCaptureKit rejects on macOS 26.
+- Excluded OverflowBar's own hidden spacer from scanning and capture results.
+- Preserve cached images across rescans to prevent icon flicker.
+- Pause hidden layout activation when selected icons cannot be captured safely.
+- Show the number of successfully captured icons in Settings.
+- Keep ScreenCaptureKit as the primary capture implementation for supported windows.
+
+## Verification
+
+- Captured 11 of 11 real menu bar icons during a live launch test.
+- Verified offscreen compatibility capture against 11 hidden status-item windows.
+- Verified that system Wi-Fi, Battery, Siri, Control Center, and Clock items are restored after a normal quit.
+- Built successfully for arm64 and x86_64 in Debug configuration.
 
 ## Install
 
-1. Download `OverflowBar-1.0.1.dmg`.
+1. Download `OverflowBar-1.0.2.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
-3. Launch OverflowBar and follow the welcome setup if this is a new installation.
+3. Replace the previous version when prompted.
 
 ## Compatibility
 
-- Apple Silicon
-- macOS 15 or later
-- Liquid Glass appearance on macOS 26 or later
+- macOS 15 or later.
+- Public release DMG contains an Apple Silicon build.
+- Accessibility and Screen Recording permissions are required for the complete experience.
 
 ## Signing notice
 
-This community build remains ad-hoc signed and is not yet Apple-notarized because the project does not currently have a Developer ID certificate. macOS may require Control-clicking the app and choosing **Open** on first launch. A SHA-256 checksum is included as a separate release asset.
+This community build is ad-hoc signed and is not yet Apple-notarized because the project does not currently have a Developer ID certificate. macOS may require Control-clicking the app and choosing **Open** on first launch. A SHA-256 checksum is included as a separate release asset.
