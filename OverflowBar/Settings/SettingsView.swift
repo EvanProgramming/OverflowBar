@@ -2,10 +2,23 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var store: MenuBarItemStore
+    var showOnboarding: () -> Void = {}
     @StateObject private var permissions = PermissionManager()
+    @StateObject private var launchAtLogin = LaunchAtLoginManager()
 
     var body: some View {
         Form {
+            Section("General") {
+                Toggle("Open OverflowBar at Login", isOn: Binding(
+                    get: { launchAtLogin.isEnabled },
+                    set: { launchAtLogin.setEnabled($0) }
+                ))
+                Button("Run Welcome Setup Again", action: showOnboarding)
+                Button("Quit OverflowBar", role: .destructive) { NSApp.terminate(nil) }
+                if let error = launchAtLogin.errorMessage {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+            }
             Section("Permissions") {
                 permissionRow("Accessibility", granted: permissions.accessibilityGranted, open: permissions.openAccessibilitySettings, request: permissions.requestAccessibility)
                 permissionRow("Screen Recording", granted: permissions.screenRecordingGranted, open: permissions.openScreenRecordingSettings, request: permissions.requestScreenRecording)
@@ -48,7 +61,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 600, minHeight: 420)
-        .onAppear { permissions.refresh(); store.refresh() }
+        .onAppear { permissions.refresh(); launchAtLogin.refresh(); store.refresh() }
         .alert("OverflowBar", isPresented: Binding(get: { store.lastActivationError != nil }, set: { if !$0 { store.lastActivationError = nil } })) { Button("OK", role: .cancel) { store.lastActivationError = nil } } message: { Text(store.lastActivationError ?? "") }
     }
 
