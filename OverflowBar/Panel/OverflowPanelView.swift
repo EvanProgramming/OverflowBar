@@ -35,7 +35,7 @@ struct OverflowPanelView: View {
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 10) {
                 panelContent
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .glassEffectTransition(.materialize)
             }
             .padding(3)
