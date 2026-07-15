@@ -12,6 +12,8 @@ The current community build is ad-hoc signed because the project does not yet ha
 
 OverflowBar also includes an opt-in, experimental layout mode modeled on menu-bar managers: selected original icons are Command-dragged to the left of the OverflowBar arrow, forming a hidden section. The arrow stays on the visible side of that divider; the second row provides a compact way to access the hidden items. When an item is chosen, OverflowBar temporarily returns the original item to the visible section, invokes it, and re-hides it after a short delay.
 
+Critical macOS controls—including Wi-Fi, Battery, Siri, Control Center, and Clock—are discovered separately and kept visible. Settings identifies these controls with an **Always Visible** lock, and every layout operation restores them if an earlier build or interrupted operation left them offscreen.
+
 Enable this only from **Settings → Menu Bar Layout**, then use **Apply Hidden Layout**. **Restore All Managed Icons** moves managed items back to the visible side. This changes the user's menu-bar arrangement and is deliberately never performed automatically. It requires Accessibility permission and may need adaptation for future macOS releases.
 
 ## Run
@@ -37,4 +39,4 @@ If a layout operation does not complete as expected, open Settings and use **Saf
 
 ## V1 scope and limitations
 
-The scanner deliberately uses public Accessibility APIs and only includes controls exposed by third-party apps on the right side of the menu bar. Apps that do not expose their status item cannot be mirrored. Layout mode uses macOS's user-facing Command-drag behaviour for status-item arrangement; it is an experimental compatibility feature, not an App Store target.
+The scanner deliberately uses public Accessibility and window-list APIs. Apps that do not expose enough status-item information may not be mirrored. Layout mode uses macOS's user-facing Command-drag behaviour for status-item arrangement; it is an experimental compatibility feature, not an App Store target.

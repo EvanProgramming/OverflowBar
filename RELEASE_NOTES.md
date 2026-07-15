@@ -1,28 +1,25 @@
-# OverflowBar 1.0.2
+# OverflowBar 1.0.3
 
-OverflowBar 1.0.2 fixes the menu bar icon capture regression introduced in 1.0.1.
+OverflowBar 1.0.3 restores missing macOS system menu bar controls and prevents managed layouts from hiding them again.
 
 ## Fixes
 
-- Fixed menu bar items appearing as generic placeholders instead of their real icons.
-- Cache visible icons before expanding the managed hidden section at launch.
-- Added a compatibility capture path for offscreen layer-25 menu bar windows that ScreenCaptureKit rejects on macOS 26.
-- Excluded OverflowBar's own hidden spacer from scanning and capture results.
-- Preserve cached images across rescans to prevent icon flicker.
-- Pause hidden layout activation when selected icons cannot be captured safely.
-- Show the number of successfully captured icons in Settings.
-- Keep ScreenCaptureKit as the primary capture implementation for supported windows.
+- Restores Wi-Fi, Battery, Siri, Control Center, and Clock when they were left offscreen by an earlier layout operation.
+- Excludes live system-control window IDs from the managed hidden set.
+- Rechecks protected system controls before and after every hidden-layout update.
+- Discovers system controls in Settings instead of dropping them during Accessibility reconciliation.
+- Shows protected controls with their real icon and an **Always Visible** lock.
+- Prevents Select All, saved selections, and stale preferences from selecting protected controls.
 
 ## Verification
 
-- Captured 11 of 11 real menu bar icons during a live launch test.
-- Verified offscreen compatibility capture against 11 hidden status-item windows.
-- Verified that system Wi-Fi, Battery, Siri, Control Center, and Clock items are restored after a normal quit.
-- Built successfully for arm64 and x86_64 in Debug configuration.
+- Verified live that 10 selected third-party items remain hidden while Wi-Fi, Battery, Siri, Control Center, and Clock stay onscreen.
+- Verified all five system controls appear in Settings with real icons and **Always Visible** state.
+- Built successfully in Debug and Release configurations.
 
 ## Install
 
-1. Download `OverflowBar-1.0.2.dmg`.
+1. Download `OverflowBar-1.0.3.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace the previous version when prompted.
 

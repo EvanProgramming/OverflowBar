@@ -26,7 +26,7 @@ final class MenuBarItemStore: ObservableObject {
         layoutManagementEnabled = layoutManager.isEnabled
     }
 
-    var selectedItems: [MenuBarItem] { items.filter(\.isSelected) }
+    var selectedItems: [MenuBarItem] { items.filter { $0.isSelected && !$0.isProtectedSystemItem } }
 
     func refresh() {
         let isRescan = !items.isEmpty
@@ -48,8 +48,8 @@ final class MenuBarItemStore: ObservableObject {
         }
         items = scanned
         if !preferences.didApplyDefaultLayout, !items.isEmpty {
-            items.forEach { $0.isSelected = true }
-            preferences.saveSelected(Set(items.map(\.id)))
+            items.forEach { $0.isSelected = !$0.isProtectedSystemItem }
+            preferences.saveSelected(Set(items.filter { !$0.isProtectedSystemItem }.map(\.id)))
             layoutManager.isEnabled = false
             layoutManagementEnabled = false
             preferences.didApplyDefaultLayout = true
@@ -63,6 +63,7 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func setSelected(_ item: MenuBarItem, selected: Bool) {
+        guard !item.isProtectedSystemItem else { return }
         item.isSelected = selected
         objectWillChange.send()
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
@@ -71,7 +72,7 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func selectAll(_ selected: Bool) {
-        for item in items { item.isSelected = selected }
+        for item in items where !item.isProtectedSystemItem { item.isSelected = selected }
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
         objectWillChange.send()
         if selected { applyLayout() } else { restoreLayout() }
@@ -136,7 +137,7 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.isEnabled = false
         layoutManagementEnabled = false
         onLayoutStateChanged?()
-        restoreLayout()
+        restoreLayout { [weak self] in self?.restoreProtectedSystemItems() }
     }
 
     func prepareForTermination(completion: @escaping () -> Void) {
@@ -144,8 +145,8 @@ final class MenuBarItemStore: ObservableObject {
         restoreLayout(completion: completion)
     }
 
-    func restoreProtectedSystemItems() {
-        layoutManager.restoreProtectedSystemItems()
+    func restoreProtectedSystemItems(completion: @escaping () -> Void = {}) {
+        layoutManager.restoreProtectedSystemItems { _ in completion() }
     }
 
     func activate(_ item: MenuBarItem) {

@@ -53,7 +53,7 @@ struct SettingsView: View {
                 }
                 if !permissions.accessibilityGranted { Text("Enable Accessibility to scan and activate menu bar items.").foregroundStyle(.secondary) }
                 ForEach(store.items) { item in
-                    Toggle(isOn: Binding(get: { item.isSelected }, set: { store.setSelected(item, selected: $0) })) {
+                    if item.isProtectedSystemItem {
                         HStack {
                             icon(for: item)
                             VStack(alignment: .leading) {
@@ -61,7 +61,21 @@ struct SettingsView: View {
                                 Text(item.title).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Image(systemName: item.supportsPressAction ? "hand.tap" : "cursorarrow.click").help(item.supportsPressAction ? "Supports Accessibility press" : "Uses mouse click fallback")
+                            Label("Always Visible", systemImage: "lock.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Toggle(isOn: Binding(get: { item.isSelected }, set: { store.setSelected(item, selected: $0) })) {
+                            HStack {
+                                icon(for: item)
+                                VStack(alignment: .leading) {
+                                    Text(item.ownerName)
+                                    Text(item.title).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: item.supportsPressAction ? "hand.tap" : "cursorarrow.click").help(item.supportsPressAction ? "Supports Accessibility press" : "Uses mouse click fallback")
+                            }
                         }
                     }
                 }
