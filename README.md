@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/overflowbar-icon.png" width="160" height="160" alt="OverflowBar app icon">
+</p>
+
 # OverflowBar
 
 > **A fluid second row for your macOS menu bar.**
