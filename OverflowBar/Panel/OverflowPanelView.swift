@@ -12,12 +12,9 @@ struct OverflowPanelView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static var preferredHeight: CGFloat {
-        if #available(macOS 26.0, *) { return 64 }
-        return 58
-    }
+    static let preferredHeight: CGFloat = 46
 
-    static let itemSlotWidth: CGFloat = 46
+    static let itemSlotWidth: CGFloat = 40
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -35,15 +32,15 @@ struct OverflowPanelView: View {
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 10) {
                 panelContent
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .glassEffect(.clear, in: Capsule())
                     .glassEffectTransition(.materialize)
             }
             .padding(3)
         } else {
             panelContent
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(.ultraThinMaterial, in: Capsule())
                 .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    Capsule()
                         .stroke(.white.opacity(0.16), lineWidth: 0.5)
                 }
                 .padding(3)
@@ -52,12 +49,12 @@ struct OverflowPanelView: View {
 
     private var panelContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                if store.selectedItems.isEmpty { Text("No menu bar items selected").foregroundStyle(.secondary).padding(.horizontal, 14) }
+            HStack(spacing: 4) {
+                if store.selectedItems.isEmpty { Text("No menu bar items selected").foregroundStyle(.secondary).padding(.horizontal, 12) }
                 ForEach(store.selectedItems) { item in OverflowItemView(item: item) { onActivate(item) } }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
         .frame(height: Self.preferredHeight - 6)
         .scrollBounceBehavior(.basedOnSize)
