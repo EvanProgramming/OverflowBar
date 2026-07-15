@@ -29,6 +29,7 @@ struct OverflowPanelView: View {
 
     @ViewBuilder
     private var adaptiveSurface: some View {
+#if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 10) {
                 panelContent
@@ -45,6 +46,19 @@ struct OverflowPanelView: View {
                 }
                 .padding(3)
         }
+#else
+        legacySurface
+#endif
+    }
+
+    private var legacySurface: some View {
+        panelContent
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(.white.opacity(0.16), lineWidth: 0.5)
+            }
+            .padding(3)
     }
 
     private var panelContent: some View {
