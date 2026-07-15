@@ -90,6 +90,7 @@ final class MenuBarLayoutManager {
     }
 
     private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, completion: @escaping (Bool) -> Void) {
+        let cursorLocation = restorableCursorLocation()
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
@@ -111,6 +112,7 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
+                    if let cursorLocation { CGWarpMouseCursorPosition(cursorLocation) }
                     self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, completion: completion)
                 }
             }
@@ -194,6 +196,17 @@ final class MenuBarLayoutManager {
     }
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? { windowRecords().first { $0.id == windowID }?.frame }
+
+    private func restorableCursorLocation() -> CGPoint? {
+        guard let point = CGEvent(source: nil)?.location,
+              point.x.isFinite, point.y.isFinite,
+              point.x > 1 || point.y > 1 else { return nil }
+        let isOnDisplay = NSScreen.screens.first { screen in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
+            return CGDisplayBounds(CGDirectDisplayID(number.uint32Value)).contains(point)
+        } != nil
+        return isOnDisplay ? point : nil
+    }
 
     private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] { Self.fetchWindowRecords() }
 

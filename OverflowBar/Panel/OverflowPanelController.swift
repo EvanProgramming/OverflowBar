@@ -21,7 +21,10 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.isReleasedWhenClosed = false
         panel.delegate = self
-        panel.contentView = NSHostingView(rootView: OverflowPanelView(store: store, onActivate: { [weak self] item in self?.store.activate(item) }))
+        panel.contentView = NSHostingView(rootView: OverflowPanelView(store: store, onActivate: { [weak self] item in
+            self?.close()
+            self?.store.activate(item)
+        }))
         panel.orderOut(nil)
     }
 

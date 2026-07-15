@@ -2,17 +2,22 @@ import AppKit
 import ApplicationServices
 
 final class MenuBarItemActivator {
-    /// Uses AXPress first, then falls back to an accessibility-authorized mouse click.
-    func activate(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
-        if let axElement = item.axElement, item.supportsPressAction, AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success {
-            completion(true)
-            return
-        }
+    func canActivateDirectly(_ item: MenuBarItem) -> Bool {
+        item.axElement != nil && item.supportsPressAction
+    }
+
+    func activateDirectly(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
+        guard let axElement = item.axElement, item.supportsPressAction else { completion(false); return }
+        completion(AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success)
+    }
+
+    /// Clicks an item after it has been temporarily moved into the visible menu bar.
+    func activateMovedItem(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
         if let windowID = item.windowID, let ownerPID = item.ownerPID,
            let source = CGEventSource(stateID: .hidSystemState),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source) {
-            let cursorLocation = CGEvent(source: nil)?.location
+            let cursorLocation = restorableCursorLocation()
             down.post(tap: .cgSessionEventTap)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 up.post(tap: .cgSessionEventTap)
@@ -21,14 +26,7 @@ final class MenuBarItemActivator {
             }
             return
         }
-
-        let point = CGPoint(x: item.frame.midX, y: item.frame.midY)
-        guard let source = CGEventSource(stateID: .hidSystemState),
-              let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
-              let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { completion(false); return }
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
-        completion(true)
+        completion(false)
     }
 
     private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource) -> CGEvent? {
@@ -48,5 +46,16 @@ final class MenuBarItemActivator {
         let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
         guard let bounds = windows.first(where: { ($0[kCGWindowNumber as String] as? Int) == Int(windowID) })?[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
         return CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+    }
+
+    private func restorableCursorLocation() -> CGPoint? {
+        guard let point = CGEvent(source: nil)?.location,
+              point.x.isFinite, point.y.isFinite,
+              point.x > 1 || point.y > 1 else { return nil }
+        let isOnDisplay = NSScreen.screens.first { screen in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
+            return CGDisplayBounds(CGDirectDisplayID(number.uint32Value)).contains(point)
+        } != nil
+        return isOnDisplay ? point : nil
     }
 }
