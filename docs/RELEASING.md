@@ -43,4 +43,3 @@ The tag triggers `.github/workflows/release.yml`, which validates version parity
 ## Signing
 
 `scripts/create-dmg.sh` uses `DEVELOPER_ID_APPLICATION` when provided. Without it, the script creates an ad-hoc signed community build. Notarization must be added before describing a release as Gatekeeper-ready.
-

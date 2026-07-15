@@ -36,4 +36,3 @@ This roadmap describes direction, not guaranteed delivery dates. Priorities may 
 - Replacing macOS Control Center
 
 Use [GitHub Discussions](https://github.com/EvanProgramming/OverflowBar/discussions) for roadmap ideas and [Issues](https://github.com/EvanProgramming/OverflowBar/issues) for scoped, reproducible work.
-

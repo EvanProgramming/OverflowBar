@@ -67,4 +67,3 @@ Open Settings and click **Safe Reset**, then quit and reopen OverflowBar. Protec
 ### The arrow disappears
 
 Quit another menu bar app or reduce visible status items temporarily, then reopen OverflowBar. The arrow uses the right-most app-owned status slot, but macOS can still constrain all menu bar items when space is exhausted.
-

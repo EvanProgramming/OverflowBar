@@ -49,4 +49,3 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing scanning, capt
 ## Security and privacy
 
 Do not open a public issue for a vulnerability. Follow [SECURITY.md](SECURITY.md). Changes must preserve the local-only capture model documented in [PRIVACY.md](PRIVACY.md).
-

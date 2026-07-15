@@ -66,4 +66,3 @@ Optional preference cleanup:
 ```bash
 defaults delete com.overflowbar.app
 ```
-

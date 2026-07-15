@@ -65,4 +65,3 @@ body:
           required: true
         - label: I removed private information from attachments.
           required: true
-

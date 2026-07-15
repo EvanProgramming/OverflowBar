@@ -83,4 +83,3 @@ OverflowBar performs all discovery, capture, layout, and activation locally.
 ## Compatibility boundary
 
 The menu bar layout is an OS implementation detail rather than a stable third-party API. Window layers, event delivery, and Accessibility exposure can change between macOS releases. CI validates compilation on the supported deployment target, while release verification also requires live macOS testing.
-

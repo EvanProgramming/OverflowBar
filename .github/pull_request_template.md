@@ -18,4 +18,3 @@
 ## Environment
 
 <!-- macOS version, Mac/display setup, and affected source apps. -->
-
