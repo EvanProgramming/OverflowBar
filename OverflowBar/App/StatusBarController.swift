@@ -40,7 +40,7 @@ final class StatusBarController: NSObject {
         store.onLayoutStateChanged = { [weak self] in self?.updateHiddenSectionLength() }
         let button = statusItem.button
         statusItem.length = NSStatusItem.squareLength
-        button?.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: "Show OverflowBar")
+        button?.image = Self.statusBarImage(isExpanded: false)
         button?.target = self
         button?.action = #selector(togglePanel)
         button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -48,7 +48,7 @@ final class StatusBarController: NSObject {
         hiddenSectionItem.button?.cell?.isEnabled = false
         updateHiddenSectionLength()
         panelController.onVisibilityChanged = { [weak self] isVisible in
-            self?.statusItem.button?.image = NSImage(systemSymbolName: isVisible ? "chevron.up" : "chevron.down", accessibilityDescription: isVisible ? "Hide OverflowBar" : "Show OverflowBar")
+            self?.statusItem.button?.image = Self.statusBarImage(isExpanded: isVisible)
         }
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
             guard let self else { return }
@@ -106,6 +106,15 @@ final class StatusBarController: NSObject {
     private var hoverRevealEnabled: Bool {
         let defaults = UserDefaults.standard
         return defaults.object(forKey: "hoverRevealEnabled") == nil || defaults.bool(forKey: "hoverRevealEnabled")
+    }
+
+    private static func statusBarImage(isExpanded: Bool) -> NSImage? {
+        guard let image = NSImage(
+            systemSymbolName: isExpanded ? "chevron.up" : "chevron.down",
+            accessibilityDescription: isExpanded ? "Hide OverflowBar" : "Show OverflowBar"
+        ) else { return nil }
+        image.isTemplate = true
+        return image
     }
 }
 

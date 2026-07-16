@@ -4,6 +4,12 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-07-16
+
+### Fixed
+
+- Made the persistent OverflowBar arrow a macOS template image so it automatically uses the correct black or white contrast in light and dark menu bars.
+
 ## [1.0.5] - 2026-07-16
 
 ### Fixed
@@ -53,7 +59,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.2...v1.0.3
