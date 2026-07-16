@@ -16,7 +16,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -version
-          xcodebuild -version | grep -Eq '^Xcode 26\\.'
+          xcodebuild -version | grep -Eq '^Xcode 26[.]'
       - name: Validate metadata and scripts
         run: |
           plutil -lint OverflowBar/Resources/Info.plist
