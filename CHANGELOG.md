@@ -4,6 +4,14 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-07-16
+
+### Fixed
+
+- Rebuilt the downloadable DMG with the Icon Composer app icon, so installed copies display the OverflowBar icon correctly.
+- Built public artifacts with the macOS 26 SDK so macOS 26 uses the Liquid Glass second-row surface instead of the macOS 15 material fallback.
+- Rendered captured menu bar glyphs as white template icons in dark mode for reliable contrast.
+
 ## [1.0.4] - 2026-07-15
 
 ### Added
@@ -45,7 +53,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.1...v1.0.2

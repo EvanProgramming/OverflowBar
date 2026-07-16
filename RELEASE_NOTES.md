@@ -1,30 +1,21 @@
-# OverflowBar 1.0.4
+# OverflowBar 1.0.5
 
-OverflowBar 1.0.4 prepares the project for sustainable public releases with a faster, clearer GitHub experience and complete product documentation.
+OverflowBar 1.0.5 fixes the public download so it matches the current app experience on macOS 26.
 
-## Highlights
+## Fixed
 
-- Rebuilt the English README around a searchable product name and subtitle: **A fluid second row for your macOS menu bar**.
-- Added a lightweight animated product demo so new visitors can understand OverflowBar in seconds.
-- Added complete installation, usage, architecture, roadmap, contribution, release, privacy, and security documentation.
-- Added structured bug and feature request forms plus a pull request checklist.
-- Added searchable repository topics and a purpose-built social preview asset.
-- Enabled GitHub Discussions and consolidated maintained documentation inside the repository.
-- Added a tag-triggered GitHub Actions workflow that builds, verifies, checksums, and publishes every future release DMG.
-- Added changelog and documentation-link validation to keep public information accurate over time.
-
-## Distribution status
-
-The downloadable app remains an ad-hoc signed Apple Silicon community build. Developer ID signing and notarization are the next distribution priorities; a Homebrew Cask submission is intentionally deferred until the app satisfies Gatekeeper and Homebrew adoption requirements.
+- The DMG now includes the OverflowBar Icon Composer application icon, including the installed app and Finder presentation.
+- Release artifacts now build with the macOS 26 SDK, enabling the Liquid Glass second-row panel on macOS 26.
+- Captured black menu bar glyphs become white in dark mode for clear contrast.
 
 ## Install
 
-1. Download `OverflowBar-1.0.4.dmg`.
+1. Download `OverflowBar-1.0.5.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
-3. Replace the previous version when prompted.
+3. Replace an older copy when prompted.
 
 ## Compatibility
 
-- macOS 15 or later.
+- macOS 15 or later; macOS 26 uses Liquid Glass.
 - Public DMG contains an Apple Silicon build.
 - Accessibility and Screen Recording permissions are required for the complete experience.

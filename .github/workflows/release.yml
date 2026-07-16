@@ -10,9 +10,17 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    # Build release artifacts with the SDK that contains Liquid Glass and Icon Composer.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify Xcode 26 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -version | grep -Eq '^Xcode 26\\.'
 
       - name: Validate tag and app version
         shell: bash
