@@ -1,14 +1,14 @@
-# OverflowBar 1.0.6
+# OverflowBar 1.0.7
 
-OverflowBar 1.0.6 completes dark mode adaptation for the persistent menu bar control.
+OverflowBar 1.0.7 fixes a menu bar hover-state issue caused by unnecessary pointer warps after OverflowBar moves or activates an item.
 
 ## Fixed
 
-- The OverflowBar arrow now uses macOS template rendering, automatically appearing black in light menu bars and white in dark menu bars.
+- OverflowBar no longer forces the pointer back to its current location after moving or activating a menu bar item, so macOS and other apps retain the correct Hover state.
 
 ## Install
 
-1. Download `OverflowBar-1.0.6.dmg`.
+1. Download `OverflowBar-1.0.7.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

@@ -4,6 +4,12 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-07-22
+
+### Fixed
+
+- Stopped forcing the mouse cursor back to its current position after menu bar item moves and activations, preventing synthetic pointer updates from leaving other menu bar items in an incorrect hover state.
+
 ## [1.0.6] - 2026-07-16
 
 ### Fixed
@@ -59,7 +65,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.3...v1.0.4

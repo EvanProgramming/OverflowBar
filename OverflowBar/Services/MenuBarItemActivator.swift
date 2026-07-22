@@ -17,11 +17,9 @@ final class MenuBarItemActivator {
            let source = CGEventSource(stateID: .hidSystemState),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source) {
-            let cursorLocation = restorableCursorLocation()
             down.post(tap: .cgSessionEventTap)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 up.post(tap: .cgSessionEventTap)
-                if let cursorLocation { CGWarpMouseCursorPosition(cursorLocation) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { completion(true) }
             }
             return
@@ -48,14 +46,4 @@ final class MenuBarItemActivator {
         return CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
     }
 
-    private func restorableCursorLocation() -> CGPoint? {
-        guard let point = CGEvent(source: nil)?.location,
-              point.x.isFinite, point.y.isFinite,
-              point.x > 1 || point.y > 1 else { return nil }
-        let isOnDisplay = NSScreen.screens.first { screen in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            return CGDisplayBounds(CGDirectDisplayID(number.uint32Value)).contains(point)
-        } != nil
-        return isOnDisplay ? point : nil
-    }
 }
