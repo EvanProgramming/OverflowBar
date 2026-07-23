@@ -4,7 +4,10 @@ final class PreferencesStore {
     private let selectedKeys = "selectedMenuBarItems"
     private let layoutManagementKey = "layoutManagementEnabled"
     private let defaultLayoutKey = "didApplyDefaultLayoutV4"
-    private let onboardingCompletedKey = "hasCompletedOnboardingV1"
+    // V1 was stored in UserDefaults, which survives replacing the app bundle.
+    // Use a new completion marker so installations of this build present setup
+    // instead of inheriting a stale completion state from an older copy.
+    private let onboardingCompletedKey = "hasCompletedOnboardingV2"
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }

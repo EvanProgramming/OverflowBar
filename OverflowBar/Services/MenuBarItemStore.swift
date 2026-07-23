@@ -181,7 +181,10 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     private func rehideAfterNextUserClick(_ item: MenuBarItem) {
-        rehideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
+        // Rehiding sends a short synthetic menu-bar drag. Waiting until the
+        // user's click has finished keeps that synthetic input out of a window
+        // drag that was started immediately after activating an item.
+        rehideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]) { [weak self] _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.finishTemporaryItem(item) }
         }
         let workItem = DispatchWorkItem { [weak self] in self?.finishTemporaryItem(item) }
