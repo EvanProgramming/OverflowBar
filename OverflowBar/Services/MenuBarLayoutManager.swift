@@ -62,9 +62,9 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .right, completion: completion)
     }
 
-    func rehide(_ item: MenuBarItem, completion: @escaping (Bool) -> Void = { _ in }) {
+    func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
         guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
-        move(item, relativeTo: target.id, placement: .left, completion: completion)
+        move(item, relativeTo: target.id, placement: .left, restoreCursorLocation: restoreCursorLocation, completion: completion)
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
@@ -153,11 +153,7 @@ final class MenuBarLayoutManager {
         }
     }
 
-    private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, completion: @escaping (Bool) -> Void) {
-        // CGEvent mouse locations update the system's logical pointer position
-        // even though the event is targeted at another process. Keep the real
-        // pointer location and put it back once the internal drag is complete.
-        let cursorLocation = restorableCursorLocation()
+    private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
@@ -179,14 +175,14 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    if let cursorLocation { CGWarpMouseCursorPosition(cursorLocation) }
-                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, completion: completion)
+                    if let restoreCursorLocation { CGWarpMouseCursorPosition(restoreCursorLocation) }
+                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: restoreCursorLocation, completion: completion)
                 }
             }
         }
     }
 
-    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, completion: @escaping (Bool) -> Void) {
+    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, restoreCursorLocation: CGPoint?, completion: @escaping (Bool) -> Void) {
         guard let itemWindowID = item.windowID else { completion(false); return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self else { completion(false); return }
@@ -201,10 +197,10 @@ final class MenuBarLayoutManager {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=true")
                 completion(true)
             } else if check < 15 {
-                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, completion: completion)
+                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else if attempt < 3 {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) timed out")
-                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, completion: completion)
+                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) failed")
                 completion(false)
@@ -263,17 +259,6 @@ final class MenuBarLayoutManager {
     }
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? { windowRecords().first { $0.id == windowID }?.frame }
-
-    private func restorableCursorLocation() -> CGPoint? {
-        guard let point = CGEvent(source: nil)?.location,
-              point.x.isFinite, point.y.isFinite,
-              point.x > 1 || point.y > 1 else { return nil }
-        let isOnDisplay = NSScreen.screens.first { screen in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            return CGDisplayBounds(CGDirectDisplayID(number.uint32Value)).contains(point)
-        } != nil
-        return isOnDisplay ? point : nil
-    }
 
     private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] { Self.fetchWindowRecords() }
 
