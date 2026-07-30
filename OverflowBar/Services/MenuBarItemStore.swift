@@ -1,14 +1,18 @@
 import AppKit
 import Combine
+import OSLog
 
 @MainActor
 final class MenuBarItemStore: ObservableObject {
     @Published private(set) var items: [MenuBarItem] = []
     @Published var lastActivationError: String?
+    @Published private(set) var activatingItemID: String?
     @Published private(set) var layoutManagementEnabled = false
     @Published private(set) var layoutOperationMessage: String?
     @Published private(set) var iconCaptureMessage: String?
     @Published private(set) var isReadyForManagedLayout = false
+
+    private let logger = Logger(subsystem: "com.overflowbar.app", category: "items")
     private let preferences = PreferencesStore()
     private let scanner = MenuBarScanner()
     private let captureService = MenuBarCaptureService()
@@ -17,56 +21,132 @@ final class MenuBarItemStore: ObservableObject {
     private var controlItemFrame: CGRect?
     private var rehideMonitor: Any?
     private var rehideWorkItem: DispatchWorkItem?
+    private var refreshWorkItem: DispatchWorkItem?
+    private var monitorTimer: Timer?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var lastWindowSignature = Set<String>()
+    private var captureGeneration = 0
+    private var isRefreshing = false
+    private var refreshAgain = false
     var onImagesReady: (() -> Void)?
     var onLayoutStateChanged: (() -> Void)?
-    private var captureGeneration = 0
 
     init() {
         layoutManager = MenuBarLayoutManager(preferences: preferences)
         layoutManagementEnabled = layoutManager.isEnabled
     }
 
+    deinit {
+        monitorTimer?.invalidate()
+        refreshWorkItem?.cancel()
+        workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
+    }
+
     var selectedItems: [MenuBarItem] { items.filter { $0.isSelected && !$0.isProtectedSystemItem } }
 
-    func refresh() {
-        let isRescan = !items.isEmpty
-        let previousImages = Dictionary(uniqueKeysWithValues: items.compactMap { item in
-            item.windowID.flatMap { windowID in item.iconImage.map { (windowID, $0) } }
-        })
-        let selectedWindowIDs = Set(items.filter(\.isSelected).compactMap(\.windowID))
-        let selected = isRescan
-            ? Set(items.filter { $0.isSelected && $0.windowID == nil }.map(\.id))
-            : preferences.selectedIDs
-        let scanned = scanner.scan(selectedIDs: selected)
-        for item in scanned {
-            item.iconImage = item.windowID.flatMap { previousImages[$0] }
+    /// Starts resilient discovery. Polling is intentional: NSWorkspace launch
+    /// notifications omit LSUIElement/background applications, and status
+    /// items can be created or replaced without their process launching.
+    func startMonitoring() {
+        guard monitorTimer == nil else { return }
+        lastWindowSignature = scanner.windowSignature()
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didLaunchApplicationNotification,
+                     NSWorkspace.didTerminateApplicationNotification,
+                     NSWorkspace.didWakeNotification] {
+            workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.scheduleRefresh(after: 0.35, reason: "workspace change") }
+            })
         }
-        if isRescan {
-            for item in scanned where item.windowID != nil {
-                item.isSelected = item.windowID.map(selectedWindowIDs.contains) == true
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshIfWindowSetChanged() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        monitorTimer = timer
+
+        // Login items do not become ready at the same time. These bounded
+        // rescans fill in late windows/icons without requiring user action.
+        for delay in [0.8, 2.0, 5.0, 10.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.scheduleRefresh(after: 0, reason: "startup retry")
             }
         }
-        items = scanned
-        if !preferences.didApplyDefaultLayout, !items.isEmpty {
-            items.forEach { $0.isSelected = !$0.isProtectedSystemItem }
-            preferences.saveSelected(Set(items.filter { !$0.isProtectedSystemItem }.map(\.id)))
+    }
+
+    func refresh() {
+        guard !isRefreshing else { refreshAgain = true; return }
+        isRefreshing = true
+        let previousByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let previousByWindowID = Dictionary(uniqueKeysWithValues: items.compactMap { item in
+            item.windowID.map { ($0, item) }
+        })
+        let knownBefore = preferences.knownItemIDs
+        let selectedBefore = preferences.selectedIDs
+        let scanned = scanner.scan(selectedIDs: selectedBefore)
+        let currentIDs = Set(scanned.filter { !$0.isProtectedSystemItem }.map(\.id))
+
+        for item in scanned {
+            let previous = previousByID[item.id] ?? item.windowID.flatMap { previousByWindowID[$0] }
+            item.iconImage = previous?.iconImage
+            if let previous { item.isSelected = previous.isSelected }
+        }
+
+        if !preferences.didApplyDefaultLayout, !scanned.isEmpty {
+            scanned.forEach { $0.isSelected = !$0.isProtectedSystemItem }
+            preferences.didApplyDefaultLayout = true
             layoutManager.isEnabled = false
             layoutManagementEnabled = false
-            preferences.didApplyDefaultLayout = true
+        } else if !knownBefore.isEmpty, layoutManagementEnabled {
+            let newIDs = currentIDs.subtracting(knownBefore)
+            for item in scanned where newIDs.contains(item.id) { item.isSelected = true }
+            if !newIDs.isEmpty {
+                logger.info("Discovered and selected \(newIDs.count, privacy: .public) new menu bar item(s)")
+            }
         }
+
+        items = scanned
+        preferences.saveKnownItems(knownBefore.union(currentIDs))
+        let selectedNow = Set(scanned.filter(\.isSelected).map(\.id))
+        preferences.saveSelected(selectedBefore.subtracting(currentIDs).union(selectedNow))
+        lastWindowSignature = scanner.windowSignature()
+        isRefreshing = false
         onLayoutStateChanged?()
+
         refreshImages(for: items) { [weak self] in
             guard let self else { return }
             self.onLayoutStateChanged?()
             self.onImagesReady?()
+            if self.refreshAgain {
+                self.refreshAgain = false
+                self.scheduleRefresh(after: 0.2, reason: "coalesced refresh")
+            }
         }
+    }
+
+    func refreshIfWindowSetChanged() {
+        let signature = scanner.windowSignature()
+        guard signature != lastWindowSignature else { return }
+        lastWindowSignature = signature
+        scheduleRefresh(after: 0.4, reason: "menu bar window set changed")
+    }
+
+    private func scheduleRefresh(after delay: TimeInterval, reason: String) {
+        refreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.logger.debug("Refreshing after \(reason, privacy: .public)")
+            self?.refresh()
+        }
+        refreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     func setSelected(_ item: MenuBarItem, selected: Bool) {
         guard !item.isProtectedSystemItem else { return }
         item.isSelected = selected
         objectWillChange.send()
-        preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
+        let currentIDs = Set(items.map(\.id))
+        let retainedMissing = preferences.selectedIDs.subtracting(currentIDs)
+        preferences.saveSelected(retainedMissing.union(items.filter(\.isSelected).map(\.id)))
         if selected { applyLayout() } else { layoutManager.show(item) }
         onLayoutStateChanged?()
     }
@@ -90,10 +170,13 @@ final class MenuBarItemStore: ObservableObject {
             for (id, image) in images {
                 self.items.first(where: { $0.id == id })?.iconImage = image
             }
+            let availableCount = candidates.filter { candidate in
+                self.items.first(where: { $0.id == candidate.id })?.displayImage != nil
+            }.count
             self.iconCaptureMessage = candidates.isEmpty
                 ? nil
-                : "Captured \(images.count) of \(candidates.count) menu bar icons."
-            self.isReadyForManagedLayout = self.selectedItems.allSatisfy { $0.iconImage != nil }
+                : "Loaded \(availableCount) of \(candidates.count) menu bar icons."
+            self.isReadyForManagedLayout = self.selectedItems.allSatisfy { $0.displayImage != nil }
             self.objectWillChange.send()
             completion?()
         }
@@ -115,7 +198,7 @@ final class MenuBarItemStore: ObservableObject {
     func applyLayout() {
         guard layoutManagementEnabled, !selectedItems.isEmpty else { return }
         guard isReadyForManagedLayout else {
-            layoutOperationMessage = "Hidden layout paused until every selected icon can be captured."
+            layoutOperationMessage = "Hidden layout paused until selected icons are available."
             return
         }
         layoutOperationMessage = "Applying hidden layout…"
@@ -150,15 +233,22 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func activate(_ item: MenuBarItem) {
+        guard activatingItemID == nil else { return }
         cancelPendingRehide()
-        if activator.canActivateDirectly(item) {
-            activator.activateDirectly(item) { [weak self] success in
-                guard let self else { return }
-                if !success { self.activateByTemporarilyRevealing(item) }
-            }
+        activatingItemID = item.id
+        lastActivationError = nil
+        if activateUsingFreshAccessibility(item) {
+            finishActivation()
             return
         }
         activateByTemporarilyRevealing(item)
+    }
+
+    private func activateUsingFreshAccessibility(_ item: MenuBarItem) -> Bool {
+        guard let fresh = scanner.refreshAccessibility(for: item), fresh.supportsPress else { return false }
+        item.axElement = fresh.element
+        item.supportsPressAction = true
+        return activator.activateDirectly(item)
     }
 
     private func activateByTemporarilyRevealing(_ item: MenuBarItem) {
@@ -166,27 +256,39 @@ final class MenuBarItemStore: ObservableObject {
             guard let self else { return }
             guard moved else {
                 self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
+                self.finishActivation()
                 return
             }
-            self.activator.activateMovedItem(item) { [weak self] success in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 guard let self else { return }
-                guard success else {
-                    self.layoutManager.rehide(item)
-                    self.lastActivationError = "Unable to activate \(item.tooltip)."
+                if self.activateUsingFreshAccessibility(item) {
+                    self.rehideAfterNextUserClick(item)
+                    self.finishActivation()
                     return
                 }
-                self.rehideAfterNextUserClick(item)
+                self.activator.activateMovedItem(item) { [weak self] success in
+                    guard let self else { return }
+                    guard success else {
+                        self.layoutManager.rehide(item)
+                        self.lastActivationError = "Unable to activate \(item.tooltip)."
+                        self.finishActivation()
+                        return
+                    }
+                    self.rehideAfterNextUserClick(item)
+                    self.finishActivation()
+                }
             }
         }
     }
 
+    private func finishActivation() { activatingItemID = nil }
+
     private func rehideAfterNextUserClick(_ item: MenuBarItem) {
-        // Rehiding sends a short synthetic menu-bar drag. Waiting until the
-        // user's click has finished keeps that synthetic input out of a window
-        // drag that was started immediately after activating an item.
         rehideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]) { [weak self] event in
             let cursorLocation = event.cgEvent?.location
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self?.finishTemporaryItem(item, restoreCursorLocation: cursorLocation) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                self?.finishTemporaryItem(item, restoreCursorLocation: cursorLocation)
+            }
         }
         let workItem = DispatchWorkItem { [weak self] in self?.finishTemporaryItem(item) }
         rehideWorkItem = workItem

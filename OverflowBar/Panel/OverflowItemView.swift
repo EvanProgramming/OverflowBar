@@ -11,7 +11,7 @@ struct OverflowItemView: View {
     var body: some View {
         Button(action: action) {
             Group {
-                if let image = item.iconImage {
+                if let image = item.displayImage {
                     Image(nsImage: image)
                         .renderingMode(colorScheme == .dark ? .template : .original)
                         .resizable()

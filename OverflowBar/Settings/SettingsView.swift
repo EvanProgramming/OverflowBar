@@ -97,7 +97,7 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private func icon(for item: MenuBarItem) -> some View {
-        if let image = item.iconImage { Image(nsImage: image).resizable().scaledToFit().frame(width: 24, height: 20) }
+        if let image = item.displayImage { Image(nsImage: image).resizable().scaledToFit().frame(width: 24, height: 20) }
         else { Image(systemName: "menubar.rectangle").frame(width: 24) }
     }
 }

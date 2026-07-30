@@ -2,24 +2,20 @@ import AppKit
 import ApplicationServices
 
 final class MenuBarItemActivator {
-    func canActivateDirectly(_ item: MenuBarItem) -> Bool {
-        item.axElement != nil && item.supportsPressAction
-    }
-
-    func activateDirectly(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
-        guard let axElement = item.axElement, item.supportsPressAction else { completion(false); return }
-        completion(AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success)
+    func activateDirectly(_ item: MenuBarItem) -> Bool {
+        guard let axElement = item.axElement, item.supportsPressAction else { return false }
+        return AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success
     }
 
     /// Clicks an item after it has been temporarily moved into the visible menu bar.
     func activateMovedItem(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
         if let windowID = item.windowID, let ownerPID = item.ownerPID,
-           let source = CGEventSource(stateID: .hidSystemState),
+           let source = CGEventSource(stateID: .privateState),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source) {
-            down.post(tap: .cgSessionEventTap)
+            down.postToPid(ownerPID)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                up.post(tap: .cgSessionEventTap)
+                up.postToPid(ownerPID)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { completion(true) }
             }
             return

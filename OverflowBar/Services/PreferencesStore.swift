@@ -2,12 +2,16 @@ import Foundation
 
 final class PreferencesStore {
     private let selectedKeys = "selectedMenuBarItems"
+    private let knownItemsKey = "knownMenuBarItemsV1"
     private let layoutManagementKey = "layoutManagementEnabled"
     private let defaultLayoutKey = "didApplyDefaultLayoutV4"
-    // V1 was stored in UserDefaults, which survives replacing the app bundle.
-    // Use a new completion marker so installations of this build present setup
-    // instead of inheriting a stale completion state from an older copy.
-    private let onboardingCompletedKey = "hasCompletedOnboardingV2"
+    // UserDefaults survives replacing the application bundle. Keep completion
+    // per release so a newly installed version presents its welcome/setup flow
+    // instead of inheriting an unrelated older build's marker.
+    private var onboardingCompletedKey: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        return "hasCompletedOnboarding.\(version)"
+    }
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
@@ -15,6 +19,7 @@ final class PreferencesStore {
     func isSelected(_ id: String) -> Bool { Set(defaults.stringArray(forKey: selectedKeys) ?? []).contains(id) }
 
     var selectedIDs: Set<String> { Set(defaults.stringArray(forKey: selectedKeys) ?? []) }
+    var knownItemIDs: Set<String> { Set(defaults.stringArray(forKey: knownItemsKey) ?? []) }
     var layoutManagementEnabled: Bool {
         get { defaults.bool(forKey: layoutManagementKey) }
         set { defaults.set(newValue, forKey: layoutManagementKey) }
@@ -29,4 +34,5 @@ final class PreferencesStore {
     }
 
     func saveSelected(_ ids: Set<String>) { defaults.set(Array(ids), forKey: selectedKeys) }
+    func saveKnownItems(_ ids: Set<String>) { defaults.set(Array(ids), forKey: knownItemsKey) }
 }

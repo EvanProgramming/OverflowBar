@@ -154,20 +154,15 @@ final class MenuBarLayoutManager {
     }
 
     private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
+        let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
-              let source = CGEventSource(stateID: .hidSystemState),
+              let source = CGEventSource(stateID: .privateState),
               let down = targetedEvent(type: .leftMouseDown, point: CGPoint(x: 20_000, y: 20_000), windowID: itemWindowID, pid: ownerPID, source: source, command: true),
               let up = targetedEvent(type: .leftMouseUp, point: CGPoint(x: placement == .left ? targetFrame.minX : targetFrame.maxX, y: targetFrame.midY), windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
             completion(false)
             return
-        }
-        if let suppressionSource = CGEventSource(stateID: .combinedSessionState) {
-            let permitAll: CGEventFilterMask = [.permitLocalMouseEvents, .permitLocalKeyboardEvents, .permitSystemDefinedEvents]
-            suppressionSource.setLocalEventsFilterDuringSuppressionState(permitAll, state: .eventSuppressionStateRemoteMouseDrag)
-            suppressionSource.setLocalEventsFilterDuringSuppressionState(permitAll, state: .eventSuppressionStateSuppressionInterval)
-            suppressionSource.localEventsSuppressionInterval = 0
         }
         relay(down, to: ownerPID) { [weak self] success in
             self?.logger.info("Mouse-down relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
@@ -175,11 +170,21 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    if let restoreCursorLocation { CGWarpMouseCursorPosition(restoreCursorLocation) }
-                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: restoreCursorLocation, completion: completion)
+                    if let physicalPointerLocation { self?.refreshPointerTracking(at: physicalPointerLocation) }
+                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
                 }
             }
         }
+    }
+
+    /// A WindowServer-targeted drag necessarily contains off-cursor event
+    /// coordinates. Replaying a movement at the untouched physical location
+    /// repairs AppKit hover tracking without warping or relocating the cursor.
+    private func refreshPointerTracking(at point: CGPoint) {
+        guard let source = CGEventSource(stateID: .privateState),
+              let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left) else { return }
+        event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
+        event.post(tap: .cgSessionEventTap)
     }
 
     private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, restoreCursorLocation: CGPoint?, completion: @escaping (Bool) -> Void) {

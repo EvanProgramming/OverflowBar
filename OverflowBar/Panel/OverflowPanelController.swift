@@ -50,6 +50,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         closeWorkItem?.cancel()
         closeWorkItem = nil
         anchorButton = button
+        store.refreshIfWindowSetChanged()
         store.refreshImages()
         guard positionPanel(relativeTo: button) else { return }
         presentation.isPresented = false

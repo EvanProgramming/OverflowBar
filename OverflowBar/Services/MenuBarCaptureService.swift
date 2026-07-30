@@ -15,7 +15,7 @@ final class MenuBarCaptureService {
     private let logger = Logger(subsystem: "com.overflowbar.app", category: "capture")
 
     func capture(_ items: [MenuBarItem]) async -> [String: NSImage] {
-        guard hasScreenCapturePermission() else {
+        guard CGPreflightScreenCaptureAccess() else {
             logger.info("Screen capture permission is not granted")
             return [:]
         }
@@ -67,13 +67,17 @@ final class MenuBarCaptureService {
                         contentFilter: filter,
                         configuration: configuration
                     )
-                    result[snapshot.itemID] = NSImage(
-                        cgImage: image,
-                        size: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
-                    )
+                    if Self.hasVisibleContent(image) {
+                        result[snapshot.itemID] = NSImage(
+                            cgImage: image,
+                            size: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
+                        )
+                    } else {
+                        logger.info("Captured a blank status window \(snapshot.windowID, privacy: .public); trying compatibility capture")
+                    }
                 } catch {
                     logger.info("ScreenCaptureKit could not capture status window \(snapshot.windowID, privacy: .public); switching to compatibility capture")
-                    break
+                    continue
                 }
             }
             return result
@@ -83,58 +87,54 @@ final class MenuBarCaptureService {
         }
     }
 
-    private func hasScreenCapturePermission() -> Bool {
-        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        if windows.contains(where: {
-            ($0[kCGWindowLayer as String] as? Int) == 25 &&
-                ($0[kCGWindowOwnerPID as String] as? Int) != Int(getpid()) &&
-                !(($0[kCGWindowName as String] as? String) ?? "").isEmpty
-        }) {
-            return true
-        }
-        return CGPreflightScreenCaptureAccess()
-    }
-
     private nonisolated static func captureWithWindowList(_ snapshots: [WindowSnapshot]) -> [String: NSImage] {
-        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        let frames: [CGWindowID: CGRect] = windows.reduce(into: [:]) { result, info in
-            guard let number = info[kCGWindowNumber as String] as? Int,
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return }
-            result[CGWindowID(number)] = CGRect(
-                x: bounds["X"] ?? 0,
-                y: bounds["Y"] ?? 0,
-                width: bounds["Width"] ?? 0,
-                height: bounds["Height"] ?? 0
-            )
-        }
-        let available = snapshots.compactMap { snapshot -> (WindowSnapshot, CGRect)? in
-            frames[snapshot.windowID].map { (snapshot, $0) }
-        }
-        guard !available.isEmpty else { return [:] }
-
-        let union = available.reduce(CGRect.null) { $0.union($1.1) }
-        guard !union.isNull,
-              let composite = legacyWindowImage(ids: available.map { $0.0.windowID }) else { return [:] }
-
-        let scale = max(1, CGFloat(composite.width) / union.width)
-        let imageBounds = CGRect(x: 0, y: 0, width: composite.width, height: composite.height)
         var result: [String: NSImage] = [:]
-
-        for (snapshot, frame) in available {
-            let crop = CGRect(
-                x: (frame.minX - union.minX) * scale,
-                y: (frame.minY - union.minY) * scale,
-                width: frame.width * scale,
-                height: frame.height * scale
-            ).integral.intersection(imageBounds)
-            guard !crop.isNull, crop.width > 0, crop.height > 0,
-                  let image = composite.cropping(to: crop) else { continue }
+        for snapshot in snapshots {
+            guard let image = legacyWindowImage(ids: [snapshot.windowID]), hasVisibleContent(image) else { continue }
             result[snapshot.itemID] = NSImage(
                 cgImage: image,
-                size: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
+                size: CGSize(width: CGFloat(image.width), height: CGFloat(image.height))
             )
         }
         return result
+    }
+
+    /// Rejects fully transparent or uniform captures, which ScreenCaptureKit
+    /// can transiently return while login items are still creating their
+    /// status windows.
+    private nonisolated static func hasVisibleContent(_ image: CGImage) -> Bool {
+        let width = 16
+        let height = 16
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+        context.interpolationQuality = .low
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var minimumAlpha = UInt8.max
+        var maximumAlpha = UInt8.min
+        var minimumLuma = UInt8.max
+        var maximumLuma = UInt8.min
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            let red = Int(pixels[offset])
+            let green = Int(pixels[offset + 1])
+            let blue = Int(pixels[offset + 2])
+            let alpha = pixels[offset + 3]
+            let luma = UInt8((red * 54 + green * 183 + blue * 19) / 256)
+            minimumAlpha = min(minimumAlpha, alpha)
+            maximumAlpha = max(maximumAlpha, alpha)
+            minimumLuma = min(minimumLuma, luma)
+            maximumLuma = max(maximumLuma, luma)
+        }
+        return maximumAlpha > 8 &&
+            (Int(maximumAlpha) - Int(minimumAlpha) > 6 || Int(maximumLuma) - Int(minimumLuma) > 6)
     }
 
     private nonisolated static func legacyWindowImage(ids: [CGWindowID]) -> CGImage? {

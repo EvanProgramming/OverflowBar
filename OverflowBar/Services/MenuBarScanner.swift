@@ -9,7 +9,7 @@ final class MenuBarScanner {
         var results = scanWindowBackedItems(selectedIDs: selectedIDs)
         guard AXIsProcessTrusted() else { return results }
         let ownBundleID = Bundle.main.bundleIdentifier
-        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .accessory || app.activationPolicy == .prohibited {
+        for app in NSWorkspace.shared.runningApplications {
             guard let bundleID = app.bundleIdentifier, bundleID != ownBundleID else { continue }
             let application = AXUIElementCreateApplication(app.processIdentifier)
             guard let menuBar = elementAttribute(application, kAXMenuBarAttribute as CFString),
@@ -19,6 +19,11 @@ final class MenuBarScanner {
                       isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
                 let title = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
                 let matchingIndex = results.firstIndex(where: { framesMatch($0.frame, frame) })
+                // A regular application's AX menu bar also contains File/Edit
+                // style menus. Only admit an unmatched element from a
+                // background/accessory app; regular apps may still enrich a
+                // matching WindowServer status item with AXPress support.
+                guard matchingIndex != nil || app.activationPolicy != .regular else { continue }
                 if title.isEmpty || excludedTitles.contains(title) || (!protectedSystemTitles.contains(title) && looksLikeTextMenu(title, frame: frame)) {
                     if let matchingIndex, !results[matchingIndex].isProtectedSystemItem { results.remove(at: matchingIndex) }
                     continue
@@ -36,7 +41,7 @@ final class MenuBarScanner {
                     existing.bundleIdentifier = bundleID
                     continue
                 }
-                results.append(MenuBarItem(id: id, title: title, ownerName: isProtected ? "System Menu Bar" : (app.localizedName ?? bundleID), bundleIdentifier: bundleID, frame: frame, axElement: child, isSelected: !isProtected && selectedIDs.contains(id), supportsPressAction: supportsPress, isProtectedSystemItem: isProtected))
+                results.append(MenuBarItem(id: id, title: title, ownerName: isProtected ? "System Menu Bar" : (app.localizedName ?? bundleID), bundleIdentifier: bundleID, frame: frame, axElement: child, applicationIcon: app.icon, isSelected: !isProtected && selectedIDs.contains(id), supportsPressAction: supportsPress, isProtectedSystemItem: isProtected))
             }
         }
         return results.sorted { $0.frame.minX < $1.frame.minX }
@@ -50,7 +55,7 @@ final class MenuBarScanner {
         // remain in the settings and overflow panel when either is refreshed.
         let options: CGWindowListOption = [.excludeDesktopElements]
         let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-        let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, ownerKey: String, frame: CGRect)] = windows.compactMap { window in
+        let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, ownerKey: String, appIcon: NSImage?, frame: CGRect)] = windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                   let identifier = window[kCGWindowNumber as String] as? Int,
@@ -59,10 +64,11 @@ final class MenuBarScanner {
             let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
             guard !excludedTitles.contains(title) else { return nil }
             let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
-            let ownerKey = NSRunningApplication(processIdentifier: pid_t(ownerPID))?.bundleIdentifier ?? owner
+            let runningApp = NSRunningApplication(processIdentifier: pid_t(ownerPID))
+            let ownerKey = runningApp?.bundleIdentifier ?? owner
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
             guard isMenuBarWindowFrame(frame), frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
-            return (identifier, ownerPID, title, owner, ownerKey, frame)
+            return (identifier, ownerPID, title, owner, ownerKey, runningApp?.icon, frame)
         }
         var occurrences: [String: Int] = [:]
         var legacyOccurrences: [String: Int] = [:]
@@ -75,8 +81,38 @@ final class MenuBarScanner {
             let isProtected = protectedSystemTitles.contains(candidate.title)
             let id = isProtected ? "system|\(candidate.title)" : "window|\(candidate.ownerKey)|\(candidate.title)|\(occurrence)"
             let legacyID = "window|\(candidate.title)|\(legacyOccurrence)"
-            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: isProtected ? "System Menu Bar" : candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, isSelected: !isProtected && (selectedIDs.contains(id) || selectedIDs.contains(legacyID)), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID), isProtectedSystemItem: isProtected)
+            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: isProtected ? "System Menu Bar" : candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, applicationIcon: candidate.appIcon, isSelected: !isProtected && (selectedIDs.contains(id) || selectedIDs.contains(legacyID)), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID), isProtectedSystemItem: isProtected)
         }
+    }
+
+    /// A position-independent fingerprint used to notice status-item creation,
+    /// removal, and process restarts without treating our own layout moves as
+    /// new items.
+    func windowSignature() -> Set<String> {
+        let windows = CGWindowListCopyWindowInfo(.excludeDesktopElements, kCGNullWindowID) as? [[String: Any]] ?? []
+        return Set(windows.compactMap { window in
+            guard (window[kCGWindowLayer as String] as? Int) == 25,
+                  let identifier = window[kCGWindowNumber as String] as? Int,
+                  let ownerPID = window[kCGWindowOwnerPID as String] as? Int,
+                  ownerPID != Int(getpid()),
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+            let title = (window[kCGWindowName as String] as? String) ?? ""
+            guard !excludedTitles.contains(title) else { return nil }
+            let width = Int((bounds["Width"] ?? 0).rounded())
+            let height = Int((bounds["Height"] ?? 0).rounded())
+            guard width > 4, height > 4, height <= 40 else { return nil }
+            return "\(identifier)|\(ownerPID)|\(title)|\(width)x\(height)"
+        })
+    }
+
+    func refreshAccessibility(for item: MenuBarItem) -> (element: AXUIElement, supportsPress: Bool)? {
+        let candidates = scan(selectedIDs: [])
+        let match = candidates.first {
+            if let windowID = item.windowID, $0.windowID == windowID { return true }
+            return $0.id == item.id
+        }
+        guard let match, let element = match.axElement else { return nil }
+        return (element, match.supportsPressAction)
     }
 
     private func isOnRightSide(_ frame: CGRect) -> Bool {

@@ -14,9 +14,10 @@ final class MenuBarItem: Identifiable {
     let ownerPID: pid_t?
     let isProtectedSystemItem: Bool
     var iconImage: NSImage?
+    let applicationIcon: NSImage?
     var isSelected: Bool
 
-    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool, windowID: CGWindowID? = nil, ownerPID: pid_t? = nil, isProtectedSystemItem: Bool = false) {
+    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, applicationIcon: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool, windowID: CGWindowID? = nil, ownerPID: pid_t? = nil, isProtectedSystemItem: Bool = false) {
         self.id = id
         self.title = title
         self.ownerName = ownerName
@@ -24,6 +25,7 @@ final class MenuBarItem: Identifiable {
         self.frame = frame
         self.axElement = axElement
         self.iconImage = iconImage
+        self.applicationIcon = applicationIcon
         self.isSelected = isSelected
         self.supportsPressAction = supportsPressAction
         self.windowID = windowID
@@ -32,6 +34,7 @@ final class MenuBarItem: Identifiable {
     }
 
     var tooltip: String { title.isEmpty ? ownerName : "\(ownerName) — \(title)" }
+    var displayImage: NSImage? { iconImage ?? applicationIcon }
 
     var fallbackSymbolName: String {
         let value = title.lowercased()

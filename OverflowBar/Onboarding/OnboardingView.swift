@@ -319,7 +319,7 @@ struct OnboardingView: View {
         )) {
             HStack(spacing: 9) {
                 Group {
-                    if let image = item.iconImage { Image(nsImage: image).resizable().scaledToFit() }
+                    if let image = item.displayImage { Image(nsImage: image).resizable().scaledToFit() }
                     else { Image(systemName: item.fallbackSymbolName) }
                 }
                 .frame(width: 22, height: 18)

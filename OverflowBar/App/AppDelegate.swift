@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Logger(subsystem: "com.overflowbar.app", category: "startup").info("Accessibility trusted: \(AXIsProcessTrusted(), privacy: .public)")
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
+        store.startMonitoring()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.store.restoreProtectedSystemItems()
         }
