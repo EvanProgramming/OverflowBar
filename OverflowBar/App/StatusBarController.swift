@@ -52,7 +52,10 @@ final class StatusBarController: NSObject {
         // Poll the read-only pointer location instead of installing a global
         // mouseMoved monitor. The monitor is unnecessary for hover reveal and
         // can interfere with WindowServer/AppKit hover delivery on macOS 26.
-        let hoverTimer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
+        // Keep hover reveal responsive while limiting idle wakeups to 4 Hz.
+        // A global mouseMoved monitor is deliberately avoided because it can
+        // interfere with cursor tracking in other applications.
+        let hoverTimer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
             self?.pollPointerForHoverReveal()
         }
         RunLoop.main.add(hoverTimer, forMode: .common)

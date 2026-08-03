@@ -69,7 +69,11 @@ final class MenuBarItemStore: ObservableObject {
                 Task { @MainActor in self?.scheduleRefresh(after: 0.35, reason: "workspace change") }
             })
         }
-        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+        // Menu-bar changes are intentionally sampled at a low duty cycle.
+        // Launch/terminate notifications and explicit panel refreshes still
+        // provide immediate discovery; this timer is only the safety net for
+        // background status-item processes that emit no notifications.
+        let timer = Timer(timeInterval: 8, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshIfWindowSetChanged() }
         }
         RunLoop.main.add(timer, forMode: .common)
