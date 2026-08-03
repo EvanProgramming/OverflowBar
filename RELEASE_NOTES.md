@@ -1,8 +1,8 @@
-# OverflowBar 1.0.9
+# OverflowBar 1.0.10
 
-OverflowBar 1.0.9 makes menu-bar discovery and activation substantially faster and more resilient.
+OverflowBar 1.0.10 fixes a regression where other applications could lose their normal hover cursor shapes while OverflowBar was enabled.
 
-This release keeps Control Center-backed items (including Feishu's generic status item) stable across refreshes, automatically detects newly-created items, and uses a WindowServer session event for fallback activation.
+OverflowBar no longer publishes synthetic session-wide mouse-movement events after layout changes. Pointer and text-edit cursor states are now left to the active application.
 
 ## Fixed
 
@@ -13,7 +13,7 @@ This release keeps Control Center-backed items (including Feishu's generic statu
 
 ## Install
 
-1. Download `OverflowBar-1.0.9.dmg`.
+1. Download `OverflowBar-1.0.10.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

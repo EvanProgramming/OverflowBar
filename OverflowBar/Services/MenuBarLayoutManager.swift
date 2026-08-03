@@ -62,9 +62,9 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .right, completion: completion)
     }
 
-    func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
+    func rehide(_ item: MenuBarItem, completion: @escaping (Bool) -> Void = { _ in }) {
         guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
-        move(item, relativeTo: target.id, placement: .left, restoreCursorLocation: restoreCursorLocation, completion: completion)
+        move(item, relativeTo: target.id, placement: .left, completion: completion)
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
@@ -154,7 +154,6 @@ final class MenuBarLayoutManager {
     }
 
     private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
-        let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
@@ -170,24 +169,13 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    if let physicalPointerLocation { self?.refreshPointerTracking(at: physicalPointerLocation) }
-                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
+                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, completion: completion)
                 }
             }
         }
     }
 
-    /// A WindowServer-targeted drag necessarily contains off-cursor event
-    /// coordinates. Replaying a movement at the untouched physical location
-    /// repairs AppKit hover tracking without warping or relocating the cursor.
-    private func refreshPointerTracking(at point: CGPoint) {
-        guard let source = CGEventSource(stateID: .privateState),
-              let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left) else { return }
-        event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
-        event.post(tap: .cgSessionEventTap)
-    }
-
-    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, restoreCursorLocation: CGPoint?, completion: @escaping (Bool) -> Void) {
+    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, completion: @escaping (Bool) -> Void) {
         guard let itemWindowID = item.windowID else { completion(false); return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self else { completion(false); return }
@@ -202,10 +190,10 @@ final class MenuBarLayoutManager {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=true")
                 completion(true)
             } else if check < 2 {
-                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
+                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, completion: completion)
             } else if attempt < 3 {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) timed out")
-                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
+                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, completion: completion)
             } else {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) failed")
                 completion(false)

@@ -4,6 +4,11 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-08-03
+
+- Removed the synthetic session-wide `mouseMoved` event used after layout moves, which could force other applications to keep the arrow cursor until mouse-down.
+- Keep Pointer and text-edit I-beam hover states entirely under the active application while still preserving the physical cursor position during layout changes.
+
 ## [1.0.9] - 2026-08-03
 
 - Normalize Control Center window identities so generic items such as Feishu remain selected and hidden across WindowServer refreshes.
@@ -82,7 +87,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.9...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.10...HEAD
+[1.0.10]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.6...v1.0.7
