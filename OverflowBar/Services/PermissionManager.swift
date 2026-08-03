@@ -24,8 +24,12 @@ final class PermissionManager: ObservableObject {
 
     func requestScreenRecording() {
         Task {
-            // Enumerating shareable content is the supported macOS 15+ request
-            // path and also registers this app in Privacy settings.
+            // Explicitly ask WindowServer/TCC to register this bundle. Merely
+            // enumerating SCShareableContent can return an empty result without
+            // adding the app to the Screen Recording list on macOS 26.
+            if !CGPreflightScreenCaptureAccess() {
+                _ = CGRequestScreenCaptureAccess()
+            }
             _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             refresh()
             logger.info("Screen recording granted after request: \(self.screenRecordingGranted, privacy: .public)")
