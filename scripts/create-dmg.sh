@@ -8,6 +8,7 @@ DERIVED_DATA="${DERIVED_DATA:-$ROOT/.release-build}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT/dist}"
 APP="$DERIVED_DATA/Build/Products/Release/OverflowBar.app"
 DMG="$OUTPUT_DIR/OverflowBar-$VERSION.dmg"
+RW_DMG="$OUTPUT_DIR/.OverflowBar-$VERSION-rw.dmg"
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/overflowbar-dmg.XXXXXX")"
 MOUNT_POINT=""
 
@@ -20,7 +21,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$OUTPUT_DIR"
-rm -f "$DMG" "$DMG.sha256"
+rm -f "$DMG" "$DMG.sha256" "$RW_DMG"
 
 xcodebuild \
     -project "$ROOT/OverflowBar.xcodeproj" \
@@ -60,15 +61,14 @@ printf '%s\n' \
 hdiutil create \
     -volname "OverflowBar $VERSION" \
     -srcfolder "$STAGING" \
-    -format UDZO \
-    -imagekey zlib-level=9 \
+    -format UDRW \
     -ov \
-    "$DMG"
+    "$RW_DMG"
 
 # Configure a friendly Finder presentation. This is best-effort because Finder
 # is unavailable in some headless build environments; the background and guide
 # remain inside the DMG even when icon placement cannot be saved.
-ATTACH_OUTPUT="$(hdiutil attach -nobrowse "$DMG")"
+ATTACH_OUTPUT="$(hdiutil attach -nobrowse "$RW_DMG")"
 MOUNT_POINT="$(printf '%s\n' "$ATTACH_OUTPUT" | sed -n 's#^.*\(/Volumes/.*\)$#\1#p' | tail -1)"
 if [[ -n "$MOUNT_POINT" ]]; then
     osascript >/dev/null <<OSA
@@ -83,7 +83,9 @@ tell application "Finder"
         set position of item "OverflowBar.app" to {220, 300}
         set position of item "Applications" to {680, 300}
         set position of item "Install Guide.txt" to {450, 115}
+        delay 2
         close
+        delay 2
         open
     end tell
 end tell
@@ -92,6 +94,9 @@ OSA
 fi
 hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true
 MOUNT_POINT=""
+
+hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
+rm -f "$RW_DMG"
 
 (cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$DMG")") | tee "$DMG.sha256"
 echo "Created $DMG"
