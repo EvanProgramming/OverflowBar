@@ -7,7 +7,7 @@ final class StatusBarController: NSObject {
     private let store: MenuBarItemStore
     private let panelController: OverflowPanelController
     private let showSettings: () -> Void
-    private var mouseMonitor: Any?
+    private var hoverPollTimer: Timer?
     private var hoverWorkItem: DispatchWorkItem?
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
@@ -49,26 +49,14 @@ final class StatusBarController: NSObject {
         panelController.onVisibilityChanged = { [weak self] isVisible in
             self?.statusItem.button?.image = Self.statusBarImage(isExpanded: isVisible)
         }
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            guard let self else { return }
-            guard self.hoverRevealEnabled,
-                  let screen = NSScreen.screens.first(where: { $0.frame.contains(event.locationInWindow) }),
-                  event.locationInWindow.y >= screen.frame.maxY - NSStatusBar.system.thickness - 2,
-                  let button = self.statusItem.button else {
-                self.hoverWorkItem?.cancel()
-                self.hoverWorkItem = nil
-                return
-            }
-            guard self.hoverWorkItem == nil else { return }
-            let workItem = DispatchWorkItem { [weak self, weak button] in
-                guard let self, let button else { return }
-                self.hoverWorkItem = nil
-                self.storeControlItemFrame(for: button)
-                self.panelController.show(relativeTo: button)
-            }
-            self.hoverWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+        // Poll the read-only pointer location instead of installing a global
+        // mouseMoved monitor. The monitor is unnecessary for hover reveal and
+        // can interfere with WindowServer/AppKit hover delivery on macOS 26.
+        let hoverTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.pollPointerForHoverReveal()
         }
+        RunLoop.main.add(hoverTimer, forMode: .common)
+        hoverPollTimer = hoverTimer
         DispatchQueue.main.async { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
             self.storeControlItemFrame(for: button)
@@ -81,8 +69,28 @@ final class StatusBarController: NSObject {
     }
 
     deinit {
-        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
+        hoverPollTimer?.invalidate()
         hoverWorkItem?.cancel()
+    }
+
+    private func pollPointerForHoverReveal() {
+        guard hoverRevealEnabled,
+              let button = statusItem.button,
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }),
+              NSEvent.mouseLocation.y >= screen.frame.maxY - NSStatusBar.system.thickness - 2 else {
+            hoverWorkItem?.cancel()
+            hoverWorkItem = nil
+            return
+        }
+        guard hoverWorkItem == nil else { return }
+        let workItem = DispatchWorkItem { [weak self, weak button] in
+            guard let self, let button else { return }
+            self.hoverWorkItem = nil
+            self.storeControlItemFrame(for: button)
+            self.panelController.show(relativeTo: button)
+        }
+        hoverWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
     }
 
     func prepareForTermination() { hiddenSectionItem.length = 0 }
