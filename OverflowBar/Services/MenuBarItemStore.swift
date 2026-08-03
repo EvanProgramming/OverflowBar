@@ -308,10 +308,12 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
-        // Preserve the real pointer across the complete reveal → click →
-        // rehide transaction. Each synthetic event can otherwise overwrite
-        // WindowServer's logical location before the next phase starts.
-        activateByTemporarilyRevealing(item, restoreCursorLocation: layoutManager.currentPointerLocation())
+        // Never fall back to synthetic cross-process mouse events. A missing
+        // mouse-up can leave WindowServer and every other app in a stuck
+        // pressed/hover state. Items without a usable AX press action must be
+        // reported as unavailable instead of mutating global input state.
+        lastActivationError = "\(item.tooltip) cannot be activated safely because Accessibility Press is unavailable."
+        finishActivation()
     }
 
     private func activateUsingFreshAccessibility(_ item: MenuBarItem) -> Bool {
@@ -319,34 +321,6 @@ final class MenuBarItemStore: ObservableObject {
         item.axElement = fresh.element
         item.supportsPressAction = true
         return activator.activateDirectly(item)
-    }
-
-    private func activateByTemporarilyRevealing(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
-        layoutManager.reveal(item, restoreCursorLocation: restoreCursorLocation) { [weak self] moved in
-            guard let self else { return }
-            guard moved else {
-                self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
-                self.finishActivation()
-                return
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-                guard let self else { return }
-                if self.activator.activateDirectly(item) {
-                    self.finishActivation()
-                    return
-                }
-                self.activator.activateMovedItem(item) { [weak self] success in
-                    guard let self else { return }
-                    self.layoutManager.restorePointerLocation(restoreCursorLocation)
-                    guard success else {
-                        self.lastActivationError = "Unable to activate \(item.tooltip)."
-                        self.finishActivation()
-                        return
-                    }
-                    self.finishActivation()
-                }
-            }
-        }
     }
 
     private func finishActivation() { activatingItemID = nil }
