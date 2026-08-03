@@ -53,7 +53,12 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         closeWorkItem = nil
         anchorButton = button
         store.refreshIfWindowSetChanged(immediate: true)
-        store.refreshImages()
+        // Images are retained across panel opens. Capturing every status-item
+        // window here is expensive and causes unnecessary ScreenCaptureKit /
+        // WindowServer work; refresh only items that still lack an image.
+        store.refreshImages(for: store.selectedItems.filter {
+            $0.displayImage == nil && $0.bundleIdentifier != "Control Center"
+        })
         guard positionPanel(relativeTo: button) else { return }
         presentation.isPresented = false
         panel.orderFrontRegardless()

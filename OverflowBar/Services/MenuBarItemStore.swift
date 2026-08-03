@@ -69,7 +69,7 @@ final class MenuBarItemStore: ObservableObject {
                 Task { @MainActor in self?.scheduleRefresh(after: 0.35, reason: "workspace change") }
             })
         }
-        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshIfWindowSetChanged() }
         }
         RunLoop.main.add(timer, forMode: .common)

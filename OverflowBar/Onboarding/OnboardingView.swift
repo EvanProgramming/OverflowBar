@@ -61,7 +61,7 @@ struct OnboardingView: View {
         .task {
             while !Task.isCancelled {
                 permissions.refresh()
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(2))
             }
         }
         .onChange(of: permissions.accessibilityGranted) { _, granted in
