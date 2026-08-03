@@ -1,8 +1,8 @@
-# OverflowBar 1.0.10
+# OverflowBar 1.0.11
 
-OverflowBar 1.0.10 fixes a regression where other applications could lose their normal hover cursor shapes while OverflowBar was enabled.
+OverflowBar 1.0.11 fixes a regression where other applications could keep a stale pointer location after an OverflowBar menu-bar drag.
 
-OverflowBar no longer publishes synthetic session-wide mouse-movement events after layout changes. Pointer and text-edit cursor states are now left to the active application.
+The app now captures the real pointer before a synthetic drag, converts Cocoa coordinates to Quartz coordinates correctly, and reassociates the hardware mouse after the drag.
 
 ## Fixed
 
@@ -13,7 +13,7 @@ OverflowBar no longer publishes synthetic session-wide mouse-movement events aft
 
 ## Install
 
-1. Download `OverflowBar-1.0.10.dmg`.
+1. Download `OverflowBar-1.0.11.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

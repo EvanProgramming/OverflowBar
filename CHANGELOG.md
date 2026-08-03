@@ -4,6 +4,11 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-08-03
+
+- Capture the real pointer before synthetic menu-bar drags and restore it using the correct Quartz coordinate space.
+- Reassociate the hardware mouse with WindowServer after a drag so subsequent movement updates hover state in other applications.
+
 ## [1.0.10] - 2026-08-03
 
 - Removed the synthetic session-wide `mouseMoved` event used after layout moves, which could force other applications to keep the arrow cursor until mouse-down.
@@ -87,7 +92,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.10...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.11...HEAD
+[1.0.11]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.7...v1.0.8
