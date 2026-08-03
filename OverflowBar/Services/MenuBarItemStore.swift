@@ -308,6 +308,10 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
+        if activator.activateViaAccessibilityHitTest(item) {
+            finishActivation()
+            return
+        }
         // Never fall back to synthetic cross-process mouse events. A missing
         // mouse-up can leave WindowServer and every other app in a stuck
         // pressed/hover state. Items without a usable AX press action must be
