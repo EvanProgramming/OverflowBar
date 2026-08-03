@@ -20,6 +20,9 @@ final class MenuBarItemStore: ObservableObject {
     private let layoutManager: MenuBarLayoutManager
     private var controlItemFrame: CGRect?
     private var rehideWorkItem: DispatchWorkItem?
+    private var menuEndObserver: NSObjectProtocol?
+    private var pendingRehideItem: MenuBarItem?
+    private var pendingRehidePointer: CGPoint?
     private var layoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
     private var monitorTimer: Timer?
@@ -44,6 +47,7 @@ final class MenuBarItemStore: ObservableObject {
         monitorTimer?.invalidate()
         refreshWorkItem?.cancel()
         layoutWorkItem?.cancel()
+        if let menuEndObserver { NotificationCenter.default.removeObserver(menuEndObserver) }
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
@@ -391,7 +395,38 @@ final class MenuBarItemStore: ObservableObject {
     private func finishActivation() { activatingItemID = nil }
 
     private func rehideAfterNextUserClick(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
-        scheduleRehide(item, attempt: 0, restoreCursorLocation: restoreCursorLocation)
+        pendingRehideItem = item
+        pendingRehidePointer = restoreCursorLocation
+        if let menuEndObserver { NotificationCenter.default.removeObserver(menuEndObserver) }
+        menuEndObserver = NotificationCenter.default.addObserver(
+            forName: NSMenu.didEndTrackingNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.rehidePendingItem()
+        }
+
+        // Some Control Center modules use a popover instead of NSMenu and do
+        // not emit didEndTracking. Keep the item visible long enough for the
+        // popover to open, then use a bounded fallback to restore the layout.
+        rehideWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in self?.rehidePendingItem() }
+        rehideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: workItem)
+    }
+
+    private func rehidePendingItem() {
+        guard let item = pendingRehideItem else { return }
+        let pointer = pendingRehidePointer
+        pendingRehideItem = nil
+        pendingRehidePointer = nil
+        rehideWorkItem?.cancel()
+        rehideWorkItem = nil
+        if let menuEndObserver {
+            NotificationCenter.default.removeObserver(menuEndObserver)
+            self.menuEndObserver = nil
+        }
+        layoutManager.rehide(item, restoreCursorLocation: pointer)
     }
 
     private func scheduleRehide(_ item: MenuBarItem, attempt: Int, restoreCursorLocation: CGPoint?) {
@@ -408,5 +443,11 @@ final class MenuBarItemStore: ObservableObject {
     private func cancelPendingRehide() {
         rehideWorkItem?.cancel()
         rehideWorkItem = nil
+        if let menuEndObserver {
+            NotificationCenter.default.removeObserver(menuEndObserver)
+            self.menuEndObserver = nil
+        }
+        pendingRehideItem = nil
+        pendingRehidePointer = nil
     }
 }
