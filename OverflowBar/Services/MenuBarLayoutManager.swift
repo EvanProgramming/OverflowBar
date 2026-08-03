@@ -100,7 +100,7 @@ final class MenuBarLayoutManager {
         guard let target = hiddenTargetWindow() else { completion(movedCount); return }
         let item = items[index]
         move(item, relativeTo: target.id, placement: .left) { [weak self] moved in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.hideSequentially(items, index: index + 1, movedCount: movedCount + (moved ? 1 : 0), completion: completion)
             }
         }
@@ -117,7 +117,7 @@ final class MenuBarLayoutManager {
         guard index < items.count else { completion(movedCount); return }
         let item = items[index]
         move(item, relativeTo: target.id, placement: .left) { [weak self] moved in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 guard let self, let refreshed = self.controlTargetWindow() else {
                     completion(movedCount + (moved ? 1 : 0))
                     return
@@ -201,7 +201,7 @@ final class MenuBarLayoutManager {
             if moved {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=true")
                 completion(true)
-            } else if check < 15 {
+            } else if check < 6 {
                 self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else if attempt < 3 {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) timed out")

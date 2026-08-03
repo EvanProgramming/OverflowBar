@@ -18,7 +18,9 @@ final class MenuBarScanner {
                 guard let frame = frame(of: child), frame.width > 5, frame.height > 5,
                       isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
                 let title = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
-                let matchingIndex = results.firstIndex(where: { framesMatch($0.frame, frame) })
+                let matchingIndex = app.activationPolicy == .regular
+                    ? nil
+                    : results.firstIndex(where: { framesMatch($0.frame, frame) })
                 // A regular application's AX menu bar also contains File/Edit
                 // style menus. Only admit an unmatched element from a
                 // background/accessory app; regular apps may still enrich a

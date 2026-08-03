@@ -55,7 +55,7 @@ final class MenuBarEventRelay {
         let nullEvent = CGEvent(source: nil)!
         nullEvent.setIntegerValueField(.eventSourceUserData, value: nullMarker)
         nullEvent.postToPid(pid)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.finish(false) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.finish(false) }
     }
 
     private static let callback: CGEventTapCallBack = { _, type, incoming, pointer in
