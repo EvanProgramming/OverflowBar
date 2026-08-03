@@ -337,7 +337,12 @@ final class MenuBarItemStore: ObservableObject {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 guard let self else { return }
-                if self.activator.activateDirectly(item) {
+                // Once the item is visible again, resolve the current
+                // WindowServer element instead of relying on the stale AX
+                // reference captured during scanning. This is both faster
+                // and safer than injecting a mouse event into Control Center.
+                if self.activator.activateDirectly(item)
+                    || self.activator.activateViaAccessibilityHitTest(item) {
                     self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                     return
