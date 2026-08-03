@@ -19,8 +19,8 @@ final class MenuBarItemStore: ObservableObject {
     private let activator = MenuBarItemActivator()
     private let layoutManager: MenuBarLayoutManager
     private var controlItemFrame: CGRect?
-    private var rehideMonitor: Any?
     private var rehideWorkItem: DispatchWorkItem?
+    private var layoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
     private var monitorTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -28,6 +28,8 @@ final class MenuBarItemStore: ObservableObject {
     private var captureGeneration = 0
     private var isRefreshing = false
     private var refreshAgain = false
+    private var isApplyingLayout = false
+    private var shouldApplyLayoutAgain = false
     var onImagesReady: (() -> Void)?
     var onLayoutStateChanged: (() -> Void)?
 
@@ -39,6 +41,7 @@ final class MenuBarItemStore: ObservableObject {
     deinit {
         monitorTimer?.invalidate()
         refreshWorkItem?.cancel()
+        layoutWorkItem?.cancel()
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
@@ -111,11 +114,14 @@ final class MenuBarItemStore: ObservableObject {
         lastWindowSignature = scanner.windowSignature()
         isRefreshing = false
         onLayoutStateChanged?()
+        let discoveredSelectedItems = !knownBefore.isEmpty && layoutManagementEnabled &&
+            !currentIDs.subtracting(knownBefore).isEmpty
 
         refreshImages(for: items) { [weak self] in
             guard let self else { return }
             self.onLayoutStateChanged?()
             self.onImagesReady?()
+            if discoveredSelectedItems { self.applyLayout() }
             if self.refreshAgain {
                 self.refreshAgain = false
                 self.scheduleRefresh(after: 0.2, reason: "coalesced refresh")
@@ -123,11 +129,15 @@ final class MenuBarItemStore: ObservableObject {
         }
     }
 
-    func refreshIfWindowSetChanged() {
+    func refreshIfWindowSetChanged(immediate: Bool = false) {
         let signature = scanner.windowSignature()
         guard signature != lastWindowSignature else { return }
         lastWindowSignature = signature
-        scheduleRefresh(after: 0.4, reason: "menu bar window set changed")
+        if immediate {
+            refresh()
+        } else {
+            scheduleRefresh(after: 0.4, reason: "menu bar window set changed")
+        }
     }
 
     private func scheduleRefresh(after delay: TimeInterval, reason: String) {
@@ -201,10 +211,35 @@ final class MenuBarItemStore: ObservableObject {
             layoutOperationMessage = "Hidden layout paused until selected icons are available."
             return
         }
+        if isApplyingLayout {
+            shouldApplyLayoutAgain = true
+            return
+        }
+        // Never begin a WindowServer status-item move while the user is in the
+        // middle of a real click or drag.
+        if CGEventSource.buttonState(.combinedSessionState, button: .left) ||
+            CGEventSource.buttonState(.combinedSessionState, button: .right) {
+            scheduleLayoutRetry()
+            return
+        }
+        isApplyingLayout = true
         layoutOperationMessage = "Applying hidden layout…"
         layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero) { [weak self] count in
-            self?.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
+            guard let self else { return }
+            self.isApplyingLayout = false
+            self.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
+            if self.shouldApplyLayoutAgain {
+                self.shouldApplyLayoutAgain = false
+                self.scheduleLayoutRetry()
+            }
         }
+    }
+
+    private func scheduleLayoutRetry() {
+        layoutWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in self?.applyLayout() }
+        layoutWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
     func restoreLayout(completion: @escaping () -> Void = {}) {
@@ -237,7 +272,15 @@ final class MenuBarItemStore: ObservableObject {
         cancelPendingRehide()
         activatingItemID = item.id
         lastActivationError = nil
-        if activateUsingFreshAccessibility(item) {
+        if activator.activateDirectly(item) {
+            finishActivation()
+            return
+        }
+        // An AX element can go stale after a status-item rebuild. Refresh it
+        // only when we already had an AX-backed item; window-backed items skip
+        // this expensive full-tree walk and use the direct per-process path
+        // after their short reveal.
+        if item.axElement != nil, activateUsingFreshAccessibility(item) {
             finishActivation()
             return
         }
@@ -261,7 +304,7 @@ final class MenuBarItemStore: ObservableObject {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 guard let self else { return }
-                if self.activateUsingFreshAccessibility(item) {
+                if self.activator.activateDirectly(item) {
                     self.rehideAfterNextUserClick(item)
                     self.finishActivation()
                     return
@@ -284,24 +327,28 @@ final class MenuBarItemStore: ObservableObject {
     private func finishActivation() { activatingItemID = nil }
 
     private func rehideAfterNextUserClick(_ item: MenuBarItem) {
-        rehideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]) { [weak self] event in
-            let cursorLocation = event.cgEvent?.location
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                self?.finishTemporaryItem(item, restoreCursorLocation: cursorLocation)
-            }
-        }
-        let workItem = DispatchWorkItem { [weak self] in self?.finishTemporaryItem(item) }
-        rehideWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: workItem)
+        scheduleRehide(item, attempt: 0)
     }
 
-    private func finishTemporaryItem(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil) {
-        cancelPendingRehide()
-        layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
+    private func scheduleRehide(_ item: MenuBarItem, attempt: Int) {
+        rehideWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let anyButtonDown = CGEventSource.buttonState(.combinedSessionState, button: .left) ||
+                CGEventSource.buttonState(.combinedSessionState, button: .right) ||
+                CGEventSource.buttonState(.combinedSessionState, button: .center)
+            if anyButtonDown, attempt < 30 {
+                self.scheduleRehide(item, attempt: attempt + 1)
+                return
+            }
+            self.rehideWorkItem = nil
+            self.layoutManager.rehide(item)
+        }
+        rehideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.45 : 0.12), execute: workItem)
     }
 
     private func cancelPendingRehide() {
-        if let rehideMonitor { NSEvent.removeMonitor(rehideMonitor); self.rehideMonitor = nil }
         rehideWorkItem?.cancel()
         rehideWorkItem = nil
     }

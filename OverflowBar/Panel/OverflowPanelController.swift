@@ -17,6 +17,8 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         self.store = store
         panel = NSPanel(contentRect: .init(x: 0, y: 0, width: 260, height: OverflowPanelView.preferredHeight), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
+        panel.title = "OverflowBar Panel"
+        panel.setAccessibilityLabel("OverflowBar Panel")
         panel.level = .statusBar
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
@@ -50,7 +52,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         closeWorkItem?.cancel()
         closeWorkItem = nil
         anchorButton = button
-        store.refreshIfWindowSetChanged()
+        store.refreshIfWindowSetChanged(immediate: true)
         store.refreshImages()
         guard positionPanel(relativeTo: button) else { return }
         presentation.isPresented = false
