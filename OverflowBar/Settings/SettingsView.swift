@@ -28,7 +28,7 @@ struct SettingsView: View {
             }
             Section("Menu Bar Layout") {
                 Toggle("Hide selected original icons", isOn: Binding(get: { store.layoutManagementEnabled }, set: { store.setLayoutManagementEnabled($0) }))
-                Text("Selected icons are Command-dragged to the left of the OverflowBar arrow. They are shown in the second row and temporarily restored when clicked.")
+                Text("OverflowBar uses Accessibility-only positioning when an item supports it. Control Center items without a writable Accessibility position remain visible to keep global pointer state safe.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
@@ -74,7 +74,7 @@ struct SettingsView: View {
                                     Text(item.title).font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Image(systemName: item.supportsPressAction ? "hand.tap" : "cursorarrow.click").help(item.supportsPressAction ? "Supports Accessibility press" : "Uses mouse click fallback")
+                                Image(systemName: item.supportsPressAction ? "hand.tap" : "exclamationmark.triangle").help(item.supportsPressAction ? "Supports Accessibility press" : "Accessibility activation unavailable")
                             }
                         }
                     }
