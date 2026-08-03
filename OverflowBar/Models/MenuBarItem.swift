@@ -35,6 +35,9 @@ final class MenuBarItem: Identifiable {
 
     var tooltip: String { title.isEmpty ? ownerName : "\(ownerName) — \(title)" }
     var displayImage: NSImage? { iconImage ?? applicationIcon }
+    var hasUsableDisplayIcon: Bool {
+        displayImage != nil || NSImage(systemSymbolName: fallbackSymbolName, accessibilityDescription: nil) != nil
+    }
 
     var fallbackSymbolName: String {
         let value = title.lowercased()

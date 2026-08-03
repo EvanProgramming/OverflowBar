@@ -118,12 +118,15 @@ final class MenuBarItemStore: ObservableObject {
         onLayoutStateChanged?()
         let discoveredSelectedItems = !knownBefore.isEmpty && layoutManagementEnabled &&
             !currentIDs.subtracting(knownBefore).isEmpty
+        isReadyForManagedLayout = selectedItems.allSatisfy(\.hasUsableDisplayIcon)
+        onImagesReady?()
+        if discoveredSelectedItems { applyLayout() }
 
-        refreshImages(for: items) { [weak self] in
+        let captureCandidates = preferences.hasCompletedOnboarding ? selectedItems : items
+        refreshImages(for: captureCandidates) { [weak self] in
             guard let self else { return }
             self.onLayoutStateChanged?()
             self.onImagesReady?()
-            if discoveredSelectedItems { self.applyLayout() }
             if self.refreshAgain {
                 self.refreshAgain = false
                 self.scheduleRefresh(after: 0.2, reason: "coalesced refresh")
@@ -190,7 +193,7 @@ final class MenuBarItemStore: ObservableObject {
             self.iconCaptureMessage = candidates.isEmpty
                 ? nil
                 : "Loaded \(availableCount) of \(candidates.count) menu bar icons."
-            self.isReadyForManagedLayout = self.selectedItems.allSatisfy { $0.displayImage != nil }
+            self.isReadyForManagedLayout = self.selectedItems.allSatisfy(\.hasUsableDisplayIcon)
             self.objectWillChange.send()
             completion?()
         }
