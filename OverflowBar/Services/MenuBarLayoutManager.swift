@@ -71,10 +71,22 @@ final class MenuBarLayoutManager {
     func currentPointerLocation() -> CGPoint? { CGEvent(source: nil)?.location }
 
     /// Reassociates WindowServer with the real pointer after a synthetic click.
+    ///
+    /// The order is intentional: Quartz documents that warping does not emit a
+    /// mouse event, and associating before the warp can leave the hardware mouse
+    /// and cursor in the disconnected state on recent macOS releases. Warp
+    /// first, associate afterwards, then send a zero-delta move so other apps
+    /// recompute hover/cursor tracking immediately.
     func restorePointerLocation(_ point: CGPoint?) {
         guard let point, Self.isValidPointerLocation(point) else { return }
-        CGAssociateMouseAndMouseCursorPosition(1)
-        CGWarpMouseCursorPosition(point)
+        _ = CGWarpMouseCursorPosition(point)
+        _ = CGAssociateMouseAndMouseCursorPosition(1)
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let move = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left) else { return }
+        move.setIntegerValueField(.mouseEventDeltaX, value: 0)
+        move.setIntegerValueField(.mouseEventDeltaY, value: 0)
+        move.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
+        move.post(tap: .cgSessionEventTap)
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
