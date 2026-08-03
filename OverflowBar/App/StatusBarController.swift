@@ -107,12 +107,17 @@ final class StatusBarController: NSObject {
     }
 
     private func updateHiddenSectionLength() {
-        // The old layout implementation used a 10,000pt status item as an
-        // off-screen sink for hidden icons. Even without CGEvent injection,
-        // that creates a giant menu-bar hit-test surface and can leave other
-        // status items with stale hover tracking. Keep the section absent until
-        // placement is implemented through a non-input API.
-        hiddenSectionItem.length = 0
+        guard store.isReadyForManagedLayout,
+              store.layoutManagementEnabled,
+              !store.selectedItems.isEmpty else {
+            hiddenSectionItem.length = 0
+            return
+        }
+        // Keep a bounded target window available for explicit layout actions.
+        // The old 10,000pt surface was unnecessarily large and could dominate
+        // menu-bar hit testing; 2,000pt is enough for current displays while
+        // still giving WindowServer a stable off-screen destination.
+        hiddenSectionItem.length = 2_000
     }
 
     private var hoverRevealEnabled: Bool {

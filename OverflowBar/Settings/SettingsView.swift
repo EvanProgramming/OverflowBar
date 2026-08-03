@@ -28,7 +28,7 @@ struct SettingsView: View {
             }
             Section("Menu Bar Layout") {
                 Toggle("Hide selected original icons", isOn: Binding(get: { store.layoutManagementEnabled }, set: { store.setLayoutManagementEnabled($0) }))
-                Text("OverflowBar uses Accessibility-only positioning when an item supports it. Control Center items without a writable Accessibility position remain visible to keep global pointer state safe.")
+                Text("OverflowBar keeps the original menu-bar order while the hidden layout is applied. Items are moved only after you enable this setting; opening an item uses the fast Accessibility path when available.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {

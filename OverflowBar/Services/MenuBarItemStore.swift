@@ -19,6 +19,7 @@ final class MenuBarItemStore: ObservableObject {
     private let activator = MenuBarItemActivator()
     private let layoutManager: MenuBarLayoutManager
     private var controlItemFrame: CGRect?
+    private var rehideWorkItem: DispatchWorkItem?
     private var layoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
     private var monitorTimer: Timer?
@@ -294,6 +295,7 @@ final class MenuBarItemStore: ObservableObject {
 
     func activate(_ item: MenuBarItem) {
         guard activatingItemID == nil else { return }
+        cancelPendingRehide()
         activatingItemID = item.id
         lastActivationError = nil
         if activator.activateDirectly(item) {
@@ -312,12 +314,10 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
-        // Never fall back to synthetic cross-process mouse events. A missing
-        // mouse-up can leave WindowServer and every other app in a stuck
-        // pressed/hover state. Items without a usable AX press action must be
-        // reported as unavailable instead of mutating global input state.
-        lastActivationError = "\(item.tooltip) cannot be activated safely because Accessibility Press is unavailable."
-        finishActivation()
+        // Preserve the real pointer across the complete reveal → click →
+        // rehide transaction. Each synthetic event can otherwise overwrite
+        // WindowServer's logical location before the next phase starts.
+        activateByTemporarilyRevealing(item, restoreCursorLocation: layoutManager.currentPointerLocation())
     }
 
     private func activateUsingFreshAccessibility(_ item: MenuBarItem) -> Bool {
@@ -327,5 +327,56 @@ final class MenuBarItemStore: ObservableObject {
         return activator.activateDirectly(item)
     }
 
+    private func activateByTemporarilyRevealing(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
+        layoutManager.reveal(item, restoreCursorLocation: restoreCursorLocation) { [weak self] moved in
+            guard let self else { return }
+            guard moved else {
+                self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
+                self.finishActivation()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+                guard let self else { return }
+                if self.activator.activateDirectly(item) {
+                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
+                    self.finishActivation()
+                    return
+                }
+                self.activator.activateMovedItem(item) { [weak self] success in
+                    guard let self else { return }
+                    self.layoutManager.restorePointerLocation(restoreCursorLocation)
+                    guard success else {
+                        self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
+                        self.lastActivationError = "Unable to activate \(item.tooltip)."
+                        self.finishActivation()
+                        return
+                    }
+                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
+                    self.finishActivation()
+                }
+            }
+        }
+    }
+
     private func finishActivation() { activatingItemID = nil }
+
+    private func rehideAfterNextUserClick(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
+        scheduleRehide(item, attempt: 0, restoreCursorLocation: restoreCursorLocation)
+    }
+
+    private func scheduleRehide(_ item: MenuBarItem, attempt: Int, restoreCursorLocation: CGPoint?) {
+        rehideWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.rehideWorkItem = nil
+            self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
+        }
+        rehideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.08 : 0.08), execute: workItem)
+    }
+
+    private func cancelPendingRehide() {
+        rehideWorkItem?.cancel()
+        rehideWorkItem = nil
+    }
 }
