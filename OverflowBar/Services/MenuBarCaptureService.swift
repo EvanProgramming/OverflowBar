@@ -122,6 +122,7 @@ final class MenuBarCaptureService {
         var maximumAlpha = UInt8.min
         var minimumLuma = UInt8.max
         var maximumLuma = UInt8.min
+        var brightOpaquePixels = 0
         for offset in stride(from: 0, to: pixels.count, by: 4) {
             let red = Int(pixels[offset])
             let green = Int(pixels[offset + 1])
@@ -132,8 +133,10 @@ final class MenuBarCaptureService {
             maximumAlpha = max(maximumAlpha, alpha)
             minimumLuma = min(minimumLuma, luma)
             maximumLuma = max(maximumLuma, luma)
+            if alpha > 220 && luma > 245 { brightOpaquePixels += 1 }
         }
         return maximumAlpha > 8 &&
+            brightOpaquePixels < (width * height * 85 / 100) &&
             (Int(maximumAlpha) - Int(minimumAlpha) > 6 || Int(maximumLuma) - Int(minimumLuma) > 6)
     }
 

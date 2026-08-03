@@ -74,9 +74,13 @@ final class MenuBarScanner {
             let ownerKey = rawOwnerKey == "com.apple.controlcenter" || owner == "Control Center"
                 ? "Control Center"
                 : rawOwnerKey
+            // Control Center's generic application icon is a white rounded
+            // square, not the status item's icon. Keep it out of the panel so
+            // the item-specific capture/fallback symbol can be used instead.
+            let applicationIcon = ownerKey == "Control Center" ? nil : runningApp?.icon
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
             guard isMenuBarWindowFrame(frame), frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
-            return (identifier, ownerPID, title, owner, ownerKey, runningApp?.icon, frame)
+            return (identifier, ownerPID, title, owner, ownerKey, applicationIcon, frame)
         }
         var occurrences: [String: Int] = [:]
         var legacyOccurrences: [String: Int] = [:]

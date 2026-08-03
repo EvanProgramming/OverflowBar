@@ -127,11 +127,11 @@ final class MenuBarItemStore: ObservableObject {
         lastWindowSignature = scanner.windowSignature()
         isRefreshing = false
         onLayoutStateChanged?()
-        let discoveredSelectedItems = !knownBefore.isEmpty && layoutManagementEnabled &&
-            !currentIDs.subtracting(knownBefore).isEmpty
         isReadyForManagedLayout = selectedItems.allSatisfy(\.hasUsableDisplayIcon)
         onImagesReady?()
-        if discoveredSelectedItems { applyLayout() }
+        // Newly discovered items are selected and shown in the panel, but we
+        // intentionally do not auto-run synthetic Command-drag layout here.
+        // The user can apply the layout explicitly after confirming the list.
 
         let captureCandidates = preferences.hasCompletedOnboarding ? selectedItems : items
         refreshImages(for: captureCandidates) { [weak self] in

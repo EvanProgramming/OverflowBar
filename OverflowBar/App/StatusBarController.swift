@@ -9,7 +9,6 @@ final class StatusBarController: NSObject {
     private let showSettings: () -> Void
     private var mouseMonitor: Any?
     private var hoverWorkItem: DispatchWorkItem?
-    private var didApplyInitialLayout = false
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
         let defaults = UserDefaults.standard
@@ -32,10 +31,10 @@ final class StatusBarController: NSObject {
         store.onImagesReady = { [weak self] in
             guard let self else { return }
             self.updateHiddenSectionLength()
-            if !self.didApplyInitialLayout {
-                self.didApplyInitialLayout = true
-                if self.store.layoutManagementEnabled { self.store.applyLayout() }
-            }
+            // Do not synthesize Command-drag events during startup. Those
+            // events alter WindowServer's global pointer state even when the
+            // user has not interacted with OverflowBar. Layout is applied by
+            // an explicit user action (or when onboarding is completed).
         }
         store.onLayoutStateChanged = { [weak self] in self?.updateHiddenSectionLength() }
         let button = statusItem.button
