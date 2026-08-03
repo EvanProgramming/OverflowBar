@@ -64,16 +64,26 @@ final class MenuBarLayoutManager {
         }
     }
 
-    func reveal(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
+    func reveal(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
         guard let target = controlTargetWindow() else { completion(false); return }
         // The hidden-section separator reaches the control item's left edge,
         // so the only valid temporary visible slot is immediately to its right.
-        move(item, relativeTo: target.id, placement: .right, completion: completion)
+        move(item, relativeTo: target.id, placement: .right, restoreCursorLocation: restoreCursorLocation, completion: completion)
     }
 
-    func rehide(_ item: MenuBarItem, completion: @escaping (Bool) -> Void = { _ in }) {
+    func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
         guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
-        move(item, relativeTo: target.id, placement: .left, completion: completion)
+        move(item, relativeTo: target.id, placement: .left, restoreCursorLocation: restoreCursorLocation, completion: completion)
+    }
+
+    /// Quartz screen coordinates captured before any synthetic menu-bar event.
+    func currentPointerLocation() -> CGPoint? { CGEvent(source: nil)?.location }
+
+    /// Reassociates WindowServer with the real pointer after a synthetic click.
+    func restorePointerLocation(_ point: CGPoint?) {
+        guard let point, Self.isValidPointerLocation(point) else { return }
+        CGAssociateMouseAndMouseCursorPosition(1)
+        CGWarpMouseCursorPosition(point)
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
@@ -162,11 +172,11 @@ final class MenuBarLayoutManager {
         }
     }
 
-    private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, completion: @escaping (Bool) -> Void) {
+    private func move(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int = 1, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
         // Capture before injecting the synthetic drag. At this point the
         // WindowServer location still matches the real hardware pointer,
         // including when the user clicked inside OverflowBar itself.
-        let physicalPointerLocation = CGEvent(source: nil)?.location ?? lastUserPointerLocation
+        let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location ?? lastUserPointerLocation
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
@@ -186,16 +196,15 @@ final class MenuBarLayoutManager {
                         // The synthetic drag changes WindowServer's logical
                         // pointer location to the menu-bar target. Restore the
                         // last real hardware location without moving the user-visible cursor.
-                        CGAssociateMouseAndMouseCursorPosition(1)
-                        CGWarpMouseCursorPosition(physicalPointerLocation)
+                        self?.restorePointerLocation(physicalPointerLocation)
                     }
-                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, completion: completion)
+                self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
                 }
             }
         }
     }
 
-    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, completion: @escaping (Bool) -> Void) {
+    private func verifyMove(_ item: MenuBarItem, relativeTo targetWindowID: CGWindowID, placement: Placement, attempt: Int, check: Int, restoreCursorLocation: CGPoint?, completion: @escaping (Bool) -> Void) {
         guard let itemWindowID = item.windowID else { completion(false); return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self else { completion(false); return }
@@ -210,10 +219,10 @@ final class MenuBarLayoutManager {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=true")
                 completion(true)
             } else if check < 2 {
-                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, completion: completion)
+                self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else if attempt < 3 {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) timed out")
-                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, completion: completion)
+                self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) failed")
                 completion(false)

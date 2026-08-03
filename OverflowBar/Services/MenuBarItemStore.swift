@@ -310,7 +310,10 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
-        activateByTemporarilyRevealing(item)
+        // Preserve the real pointer across the complete reveal → click →
+        // rehide transaction. Each synthetic event can otherwise overwrite
+        // WindowServer's logical location before the next phase starts.
+        activateByTemporarilyRevealing(item, restoreCursorLocation: layoutManager.currentPointerLocation())
     }
 
     private func activateUsingFreshAccessibility(_ item: MenuBarItem) -> Bool {
@@ -320,8 +323,8 @@ final class MenuBarItemStore: ObservableObject {
         return activator.activateDirectly(item)
     }
 
-    private func activateByTemporarilyRevealing(_ item: MenuBarItem) {
-        layoutManager.reveal(item) { [weak self] moved in
+    private func activateByTemporarilyRevealing(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
+        layoutManager.reveal(item, restoreCursorLocation: restoreCursorLocation) { [weak self] moved in
             guard let self else { return }
             guard moved else {
                 self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
@@ -331,19 +334,20 @@ final class MenuBarItemStore: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 guard let self else { return }
                 if self.activator.activateDirectly(item) {
-                    self.rehideAfterNextUserClick(item)
+                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                     return
                 }
                 self.activator.activateMovedItem(item) { [weak self] success in
                     guard let self else { return }
+                    self.layoutManager.restorePointerLocation(restoreCursorLocation)
                     guard success else {
-                        self.layoutManager.rehide(item)
+                        self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
                         self.lastActivationError = "Unable to activate \(item.tooltip)."
                         self.finishActivation()
                         return
                     }
-                    self.rehideAfterNextUserClick(item)
+                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                 }
             }
@@ -352,23 +356,16 @@ final class MenuBarItemStore: ObservableObject {
 
     private func finishActivation() { activatingItemID = nil }
 
-    private func rehideAfterNextUserClick(_ item: MenuBarItem) {
-        scheduleRehide(item, attempt: 0)
+    private func rehideAfterNextUserClick(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
+        scheduleRehide(item, attempt: 0, restoreCursorLocation: restoreCursorLocation)
     }
 
-    private func scheduleRehide(_ item: MenuBarItem, attempt: Int) {
+    private func scheduleRehide(_ item: MenuBarItem, attempt: Int, restoreCursorLocation: CGPoint?) {
         rehideWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            let anyButtonDown = CGEventSource.buttonState(.combinedSessionState, button: .left) ||
-                CGEventSource.buttonState(.combinedSessionState, button: .right) ||
-                CGEventSource.buttonState(.combinedSessionState, button: .center)
-            if anyButtonDown, attempt < 30 {
-                self.scheduleRehide(item, attempt: attempt + 1)
-                return
-            }
             self.rehideWorkItem = nil
-            self.layoutManager.rehide(item)
+            self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
         }
         rehideWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.45 : 0.12), execute: workItem)
