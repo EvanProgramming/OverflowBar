@@ -86,9 +86,13 @@ final class MenuBarItemStore: ObservableObject {
             item.windowID.map { ($0, item) }
         })
         let knownBefore = preferences.knownItemIDs
+        let knownWindowIDsBefore = preferences.knownWindowIDs
+        let deselectedBefore = preferences.deselectedItemIDs
         let selectedBefore = preferences.selectedIDs
         let scanned = scanner.scan(selectedIDs: selectedBefore)
         let currentIDs = Set(scanned.filter { !$0.isProtectedSystemItem }.map(\.id))
+        let currentWindowIDs = Set(scanned.compactMap(\.windowID))
+        let newWindowIDs = currentWindowIDs.subtracting(knownWindowIDsBefore)
 
         for item in scanned {
             let previous = previousByID[item.id] ?? item.windowID.flatMap { previousByWindowID[$0] }
@@ -103,14 +107,21 @@ final class MenuBarItemStore: ObservableObject {
             layoutManagementEnabled = false
         } else if !knownBefore.isEmpty, layoutManagementEnabled {
             let newIDs = currentIDs.subtracting(knownBefore)
-            for item in scanned where newIDs.contains(item.id) { item.isSelected = true }
-            if !newIDs.isEmpty {
-                logger.info("Discovered and selected \(newIDs.count, privacy: .public) new menu bar item(s)")
+            let newWindowItems = scanned.filter { item in
+                !item.isProtectedSystemItem && item.windowID.map(newWindowIDs.contains) == true &&
+                    !deselectedBefore.contains(item.id)
+            }
+            for item in scanned where newIDs.contains(item.id) || newWindowItems.contains(where: { $0.id == item.id }) {
+                if !deselectedBefore.contains(item.id) { item.isSelected = true }
+            }
+            if !newIDs.isEmpty || !newWindowItems.isEmpty {
+                logger.info("Discovered and selected \(max(newIDs.count, newWindowItems.count), privacy: .public) new menu bar item(s)")
             }
         }
 
         items = scanned
         preferences.saveKnownItems(knownBefore.union(currentIDs))
+        preferences.saveKnownWindowIDs(knownWindowIDsBefore.union(currentWindowIDs))
         let selectedNow = Set(scanned.filter(\.isSelected).map(\.id))
         preferences.saveSelected(selectedBefore.subtracting(currentIDs).union(selectedNow))
         lastWindowSignature = scanner.windowSignature()
@@ -159,6 +170,9 @@ final class MenuBarItemStore: ObservableObject {
         guard !item.isProtectedSystemItem else { return }
         item.isSelected = selected
         objectWillChange.send()
+        var deselected = preferences.deselectedItemIDs
+        if selected { deselected.remove(item.id) } else { deselected.insert(item.id) }
+        preferences.saveDeselectedItems(deselected)
         let currentIDs = Set(items.map(\.id))
         let retainedMissing = preferences.selectedIDs.subtracting(currentIDs)
         preferences.saveSelected(retainedMissing.union(items.filter(\.isSelected).map(\.id)))
@@ -168,6 +182,11 @@ final class MenuBarItemStore: ObservableObject {
 
     func selectAll(_ selected: Bool) {
         for item in items where !item.isProtectedSystemItem { item.isSelected = selected }
+        if selected {
+            preferences.saveDeselectedItems([])
+        } else {
+            preferences.saveDeselectedItems(Set(items.filter { !$0.isProtectedSystemItem }.map(\.id)))
+        }
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
         objectWillChange.send()
         if selected { applyLayout() } else { restoreLayout() }

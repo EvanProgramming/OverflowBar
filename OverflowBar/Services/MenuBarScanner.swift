@@ -67,7 +67,13 @@ final class MenuBarScanner {
             guard !excludedTitles.contains(title) else { return nil }
             let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
             let runningApp = NSRunningApplication(processIdentifier: pid_t(ownerPID))
-            let ownerKey = runningApp?.bundleIdentifier ?? owner
+            // macOS can report the same Control Center status item with either
+            // the localized owner name or its bundle identifier. Keep one
+            // stable key so selections survive WindowServer refreshes.
+            let rawOwnerKey = runningApp?.bundleIdentifier ?? owner
+            let ownerKey = rawOwnerKey == "com.apple.controlcenter" || owner == "Control Center"
+                ? "Control Center"
+                : rawOwnerKey
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
             guard isMenuBarWindowFrame(frame), frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
             return (identifier, ownerPID, title, owner, ownerKey, runningApp?.icon, frame)
@@ -82,8 +88,11 @@ final class MenuBarScanner {
             legacyOccurrences[candidate.title] = legacyOccurrence + 1
             let isProtected = protectedSystemTitles.contains(candidate.title)
             let id = isProtected ? "system|\(candidate.title)" : "window|\(candidate.ownerKey)|\(candidate.title)|\(occurrence)"
+            let alternateOwnerKey = candidate.ownerKey == "Control Center" ? "com.apple.controlcenter" : candidate.ownerKey
+            let alternateID = "window|\(alternateOwnerKey)|\(candidate.title)|\(occurrence)"
             let legacyID = "window|\(candidate.title)|\(legacyOccurrence)"
-            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: isProtected ? "System Menu Bar" : candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, applicationIcon: candidate.appIcon, isSelected: !isProtected && (selectedIDs.contains(id) || selectedIDs.contains(legacyID)), supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID), isProtectedSystemItem: isProtected)
+            let isSelected = !isProtected && (selectedIDs.contains(id) || selectedIDs.contains(alternateID) || selectedIDs.contains(legacyID))
+            return MenuBarItem(id: id, title: candidate.title == "Item-0" ? "Menu Bar Item" : candidate.title, ownerName: isProtected ? "System Menu Bar" : candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, applicationIcon: candidate.appIcon, isSelected: isSelected, supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID), isProtectedSystemItem: isProtected)
         }
     }
 

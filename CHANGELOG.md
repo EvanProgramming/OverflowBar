@@ -4,6 +4,12 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-08-03
+
+- Normalize Control Center window identities so generic items such as Feishu remain selected and hidden across WindowServer refreshes.
+- Persist explicit deselections and detect newly-created menu-bar windows without requiring a restart.
+- Route fallback activation through the WindowServer session event tap for more reliable Control Center clicks.
+
 ## [1.0.8] - 2026-08-03
 
 ### Fixed
@@ -76,7 +82,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.9...HEAD
+[1.0.9]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.5...v1.0.6

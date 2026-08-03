@@ -1,6 +1,8 @@
-# OverflowBar 1.0.8
+# OverflowBar 1.0.9
 
-OverflowBar 1.0.8 makes menu-bar discovery and activation substantially faster and more resilient.
+OverflowBar 1.0.9 makes menu-bar discovery and activation substantially faster and more resilient.
+
+This release keeps Control Center-backed items (including Feishu's generic status item) stable across refreshes, automatically detects newly-created items, and uses a WindowServer session event for fallback activation.
 
 ## Fixed
 
@@ -11,7 +13,7 @@ OverflowBar 1.0.8 makes menu-bar discovery and activation substantially faster a
 
 ## Install
 
-1. Download `OverflowBar-1.0.8.dmg`.
+1. Download `OverflowBar-1.0.9.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

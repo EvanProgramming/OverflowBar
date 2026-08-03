@@ -13,9 +13,13 @@ final class MenuBarItemActivator {
            let source = CGEventSource(stateID: .privateState),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source) {
-            down.postToPid(ownerPID)
+            // Control Center owns most status-item windows on recent macOS,
+            // but it does not consistently consume events posted directly to
+            // its PID. A session-tap click follows the same WindowServer path
+            // as a real menu-bar click while leaving the physical cursor put.
+            down.post(tap: .cgSessionEventTap)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                up.postToPid(ownerPID)
+                up.post(tap: .cgSessionEventTap)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { completion(true) }
             }
             return
