@@ -21,6 +21,7 @@ final class MenuBarItemStore: ObservableObject {
     private var controlItemFrame: CGRect?
     private var rehideWorkItem: DispatchWorkItem?
     private var menuEndObserver: NSObjectProtocol?
+    private var menuDismissMonitor: Any?
     private var pendingRehideItem: MenuBarItem?
     private var pendingRehidePointer: CGPoint?
     private var layoutWorkItem: DispatchWorkItem?
@@ -48,6 +49,7 @@ final class MenuBarItemStore: ObservableObject {
         refreshWorkItem?.cancel()
         layoutWorkItem?.cancel()
         if let menuEndObserver { NotificationCenter.default.removeObserver(menuEndObserver) }
+        if let menuDismissMonitor { NSEvent.removeMonitor(menuDismissMonitor) }
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
@@ -406,6 +408,18 @@ final class MenuBarItemStore: ObservableObject {
             self?.rehidePendingItem()
         }
 
+        // Popovers do not emit NSMenu tracking notifications. Install this
+        // monitor after the originating click has completed, so the next
+        // real click (blank area, another app, or a popover action) closes
+        // the transient layout immediately instead of waiting for timeout.
+        if let menuDismissMonitor { NSEvent.removeMonitor(menuDismissMonitor) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self, self.pendingRehideItem != nil else { return }
+            self.menuDismissMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                DispatchQueue.main.async { self?.rehidePendingItem() }
+            }
+        }
+
         // Some Control Center modules use a popover instead of NSMenu and do
         // not emit didEndTracking. Keep the item visible long enough for the
         // popover to open, then use a bounded fallback to restore the layout.
@@ -426,6 +440,10 @@ final class MenuBarItemStore: ObservableObject {
             NotificationCenter.default.removeObserver(menuEndObserver)
             self.menuEndObserver = nil
         }
+        if let menuDismissMonitor {
+            NSEvent.removeMonitor(menuDismissMonitor)
+            self.menuDismissMonitor = nil
+        }
         layoutManager.rehide(item, restoreCursorLocation: pointer)
     }
 
@@ -435,6 +453,10 @@ final class MenuBarItemStore: ObservableObject {
         if let menuEndObserver {
             NotificationCenter.default.removeObserver(menuEndObserver)
             self.menuEndObserver = nil
+        }
+        if let menuDismissMonitor {
+            NSEvent.removeMonitor(menuDismissMonitor)
+            self.menuDismissMonitor = nil
         }
         pendingRehideItem = nil
         pendingRehidePointer = nil
