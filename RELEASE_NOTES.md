@@ -1,14 +1,17 @@
-# OverflowBar 1.0.7
+# OverflowBar 1.0.8
 
-OverflowBar 1.0.7 fixes a menu bar hover-state issue caused by unnecessary pointer warps after OverflowBar moves or activates an item.
+OverflowBar 1.0.8 makes menu-bar discovery and activation substantially faster and more resilient.
 
 ## Fixed
 
-- OverflowBar no longer forces the pointer back to its current location after moving or activating a menu bar item, so macOS and other apps retain the correct Hover state.
+- New and late-starting status items are discovered automatically, including after login launch.
+- Normal activation uses Accessibility Press or a direct target-process click, avoiding the old multi-second synthetic drag path.
+- Temporary moves no longer wait for the next unrelated mouse-up, preventing window-drag and Hover races.
+- Blank captures fall back to application or symbol icons while real screenshots are filled in asynchronously.
 
 ## Install
 
-1. Download `OverflowBar-1.0.7.dmg`.
+1. Download `OverflowBar-1.0.8.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

@@ -4,6 +4,17 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-08-03
+
+### Fixed
+
+- Added continuous menu-bar discovery with startup retries, launch/termination notifications, and immediate refresh when the overflow panel opens.
+- Added stable icon fallbacks and background capture so missing or blank screenshots no longer block layout or show empty cells.
+- Made normal activation use cached Accessibility Press or a direct target-process click; temporary WindowServer moves are now only a fallback.
+- Removed the delayed rehide-on-next-mouse-up race that could interfere with dragging another application's window or corrupt Hover state.
+- Coalesced refresh/capture/layout work and shortened move verification to avoid multi-second activation delays.
+- Prevented regular application menus from being mistaken for status-bar controls.
+
 ## [1.0.7] - 2026-07-22
 
 ### Fixed
@@ -65,7 +76,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.8...HEAD
+[1.0.8]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.4...v1.0.5
