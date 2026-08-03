@@ -19,9 +19,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.startMonitoring()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            self?.store.restoreProtectedSystemItems()
-        }
+        // Startup must be observational only. Restoring offscreen system
+        // items uses synthetic Command-drag events and can change WindowServer
+        // pointer state before the user has interacted with OverflowBar.
         if preferences.hasCompletedOnboarding {
             store.refresh()
         } else {

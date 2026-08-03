@@ -11,19 +11,10 @@ final class MenuBarLayoutManager {
     private let preferences: PreferencesStore
     private let initialWindowIDs: Set<CGWindowID>
     private var relays: [MenuBarEventRelay] = []
-    private var pointerMonitor: Any?
-    private var lastUserPointerLocation: CGPoint?
     var onHiddenFramesChanged: (([CGRect]) -> Void)?
     init(preferences: PreferencesStore) {
         self.preferences = preferences
         initialWindowIDs = Set(Self.fetchWindowRecords().map(\.id))
-        pointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            self?.lastUserPointerLocation = Self.quartzPointerLocation(for: event.locationInWindow)
-        }
-    }
-
-    deinit {
-        if let pointerMonitor { NSEvent.removeMonitor(pointerMonitor) }
     }
 
     var isEnabled: Bool {
@@ -176,7 +167,7 @@ final class MenuBarLayoutManager {
         // Capture before injecting the synthetic drag. At this point the
         // WindowServer location still matches the real hardware pointer,
         // including when the user clicked inside OverflowBar itself.
-        let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location ?? lastUserPointerLocation
+        let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
@@ -288,18 +279,6 @@ final class MenuBarLayoutManager {
             guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
             return CGDisplayBounds(CGDirectDisplayID(number.uint32Value)).contains(point)
         }
-    }
-
-    /// NSEvent reports global locations in Cocoa's bottom-left coordinate
-    /// system, while CGEvent/CGWarpMouseCursorPosition use Quartz's top-left
-    /// display coordinates. Keep the conversion at the event boundary.
-    private static func quartzPointerLocation(for cocoaPoint: CGPoint) -> CGPoint? {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(cocoaPoint) }),
-              let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
-        let display = CGDisplayBounds(CGDirectDisplayID(number.uint32Value))
-        let localX = cocoaPoint.x - screen.frame.minX
-        let localY = cocoaPoint.y - screen.frame.minY
-        return CGPoint(x: display.minX + localX, y: display.maxY - localY)
     }
 
     private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] { Self.fetchWindowRecords() }
