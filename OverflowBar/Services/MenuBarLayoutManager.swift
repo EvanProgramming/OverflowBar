@@ -62,11 +62,6 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .right, restoreCursorLocation: restoreCursorLocation, completion: completion)
     }
 
-    func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
-        guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
-        move(item, relativeTo: target.id, placement: .left, restoreCursorLocation: restoreCursorLocation, completion: completion)
-    }
-
     /// Quartz screen coordinates captured before any synthetic menu-bar event.
     func currentPointerLocation() -> CGPoint? { CGEvent(source: nil)?.location }
 

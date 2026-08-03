@@ -19,7 +19,6 @@ final class MenuBarItemStore: ObservableObject {
     private let activator = MenuBarItemActivator()
     private let layoutManager: MenuBarLayoutManager
     private var controlItemFrame: CGRect?
-    private var rehideWorkItem: DispatchWorkItem?
     private var layoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
     private var monitorTimer: Timer?
@@ -295,7 +294,6 @@ final class MenuBarItemStore: ObservableObject {
 
     func activate(_ item: MenuBarItem) {
         guard activatingItemID == nil else { return }
-        cancelPendingRehide()
         activatingItemID = item.id
         lastActivationError = nil
         if activator.activateDirectly(item) {
@@ -352,24 +350,4 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     private func finishActivation() { activatingItemID = nil }
-
-    private func rehideAfterNextUserClick(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
-        scheduleRehide(item, attempt: 0, restoreCursorLocation: restoreCursorLocation)
-    }
-
-    private func scheduleRehide(_ item: MenuBarItem, attempt: Int, restoreCursorLocation: CGPoint?) {
-        rehideWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.rehideWorkItem = nil
-            self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
-        }
-        rehideWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.45 : 0.12), execute: workItem)
-    }
-
-    private func cancelPendingRehide() {
-        rehideWorkItem?.cancel()
-        rehideWorkItem = nil
-    }
 }
