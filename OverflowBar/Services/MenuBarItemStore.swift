@@ -27,6 +27,7 @@ final class MenuBarItemStore: ObservableObject {
     private var lastWindowSignature = Set<String>()
     private var captureGeneration = 0
     private var isRefreshing = false
+    private var isCapturing = false
     private var refreshAgain = false
     private var isApplyingLayout = false
     private var shouldApplyLayoutAgain = false
@@ -71,13 +72,14 @@ final class MenuBarItemStore: ObservableObject {
         // rescans fill in late windows/icons without requiring user action.
         for delay in [0.8, 2.0, 5.0, 10.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.scheduleRefresh(after: 0, reason: "startup retry")
+                guard let self, self.items.isEmpty || !self.isReadyForManagedLayout else { return }
+                self.scheduleRefresh(after: 0, reason: "startup retry")
             }
         }
     }
 
     func refresh() {
-        guard !isRefreshing else { refreshAgain = true; return }
+        guard !isRefreshing, !isCapturing else { refreshAgain = true; return }
         isRefreshing = true
         let previousByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         let previousByWindowID = Dictionary(uniqueKeysWithValues: items.compactMap { item in
@@ -173,10 +175,12 @@ final class MenuBarItemStore: ObservableObject {
         captureGeneration += 1
         let generation = captureGeneration
         let candidates = target ?? selectedItems
+        isCapturing = true
         Task { [weak self] in
             guard let self else { return }
             let images = await self.captureService.capture(candidates)
             guard generation == self.captureGeneration else { return }
+            self.isCapturing = false
             for (id, image) in images {
                 self.items.first(where: { $0.id == id })?.iconImage = image
             }

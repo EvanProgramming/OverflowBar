@@ -201,7 +201,7 @@ final class MenuBarLayoutManager {
             if moved {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) moved=true")
                 completion(true)
-            } else if check < 6 {
+            } else if check < 2 {
                 self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: check + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else if attempt < 3 {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) attempt \(attempt, privacy: .public) timed out")
