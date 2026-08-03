@@ -429,17 +429,6 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.rehide(item, restoreCursorLocation: pointer)
     }
 
-    private func scheduleRehide(_ item: MenuBarItem, attempt: Int, restoreCursorLocation: CGPoint?) {
-        rehideWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.rehideWorkItem = nil
-            self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
-        }
-        rehideWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0.08 : 0.08), execute: workItem)
-    }
-
     private func cancelPendingRehide() {
         rehideWorkItem?.cancel()
         rehideWorkItem = nil
