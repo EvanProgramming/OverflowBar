@@ -334,7 +334,6 @@ final class MenuBarItemStore: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                 guard let self else { return }
                 if self.activator.activateDirectly(item) {
-                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                     return
                 }
@@ -342,12 +341,10 @@ final class MenuBarItemStore: ObservableObject {
                     guard let self else { return }
                     self.layoutManager.restorePointerLocation(restoreCursorLocation)
                     guard success else {
-                        self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
                         self.lastActivationError = "Unable to activate \(item.tooltip)."
                         self.finishActivation()
                         return
                     }
-                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                 }
             }
