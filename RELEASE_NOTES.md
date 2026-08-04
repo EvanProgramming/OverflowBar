@@ -1,19 +1,24 @@
-# OverflowBar 1.0.11
+# OverflowBar 1.0.14
 
-OverflowBar 1.0.11 fixes a regression where other applications could keep a stale pointer location after an OverflowBar menu-bar drag.
-
-The app now captures the real pointer before a synthetic drag, converts Cocoa coordinates to Quartz coordinates correctly, and reassociates the hardware mouse after the drag.
+OverflowBar 1.0.14 is a stable patch release focused on pointer-state safety during startup.
 
 ## Fixed
 
-- New and late-starting status items are discovered automatically, including after login launch.
-- Normal activation uses Accessibility Press or a direct target-process click, avoiding the old multi-second synthetic drag path.
-- Temporary moves no longer wait for the next unrelated mouse-up, preventing window-drag and Hover races.
-- Blank captures fall back to application or symbol icons while real screenshots are filled in asynchronously.
+- Startup discovery and icon capture are now observational and never apply synthetic menu-bar layout changes.
+- Removed automatic recovery of off-screen protected system items during login and startup.
+- Hidden layout changes are performed only after an explicit user action.
+- Prevented the stale hover and cursor state observed in Safari, Codex, and other AppKit applications.
+- Preserved fast Accessibility activation and right-click handling for supported menu-bar items.
+
+## Verification
+
+- Release build completed successfully.
+- DMG passed hdiutil verification.
+- SHA-256 checksum is included with the release assets.
 
 ## Install
 
-1. Download `OverflowBar-1.0.11.dmg`.
+1. Download `OverflowBar-1.0.14.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

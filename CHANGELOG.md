@@ -4,6 +4,13 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.14] - 2026-08-04
+
+- Prevented startup discovery and icon capture from injecting synthetic menu-bar events.
+- Removed automatic recovery of protected system items during login and startup.
+- Restricted hidden-layout changes to explicit user actions, preventing stale pointer and hover state in Safari, Codex, and other AppKit applications.
+- Preserved the fast Accessibility activation path and right-click handling for supported menu-bar items.
+
 ## [1.0.11] - 2026-08-03
 
 - Capture the real pointer before synthetic menu-bar drags and restore it using the correct Quartz coordinate space.
@@ -92,7 +99,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.11...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.14...HEAD
+[1.0.14]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.13...v1.0.14
 [1.0.11]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.9...v1.0.10
 [1.0.9]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.8...v1.0.9
