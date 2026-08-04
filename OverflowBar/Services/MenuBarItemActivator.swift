@@ -52,7 +52,15 @@ final class MenuBarItemActivator {
     /// need a real right mouse event instead.
     func activateRightClick(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
         guard let source = CGEventSource(stateID: .privateState) else { completion(false); return }
-        let point = CGPoint(x: item.frame.midX, y: item.frame.midY)
+        let point: CGPoint
+        if let windowID = item.windowID, let frame = currentFrame(windowID: windowID) {
+            point = CGPoint(x: frame.midX, y: frame.midY)
+        } else {
+            guard let screen = NSScreen.screens.first(where: { $0.frame.minX <= item.frame.midX && $0.frame.maxX >= item.frame.midX }) ?? NSScreen.main else { completion(false); return }
+            let y = item.frame.midY <= 50 ? item.frame.midY : screen.frame.maxY - item.frame.midY
+            point = CGPoint(x: item.frame.midX, y: y)
+        }
+        guard isValidMenuBarPoint(point) else { completion(false); return }
         guard let down = CGEvent(mouseEventSource: source, mouseType: .rightMouseDown, mouseCursorPosition: point, mouseButton: .right),
               let up = CGEvent(mouseEventSource: source, mouseType: .rightMouseUp, mouseCursorPosition: point, mouseButton: .right) else { completion(false); return }
         down.setIntegerValueField(.mouseEventClickState, value: 1)
@@ -65,8 +73,12 @@ final class MenuBarItemActivator {
     }
 
     private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource, mouseButton: CGMouseButton) -> CGEvent? {
-        let point = currentFrame(windowID: windowID).map { CGPoint(x: $0.midX, y: $0.midY) }
-            ?? CGPoint(x: item.frame.midX, y: item.frame.midY)
+        // Never fall back to item.frame here: for a hidden item that frame is
+        // intentionally negative, and WindowServer clamps it to (0, 0),
+        // which opens the Apple menu instead of the requested status item.
+        guard let frame = currentFrame(windowID: windowID), frame.maxX > 0 else { return nil }
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        guard isValidMenuBarPoint(point) else { return nil }
         guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: mouseButton) else { return nil }
         event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
         event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
@@ -75,6 +87,13 @@ final class MenuBarItemActivator {
         event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(windowID))
         event.setIntegerValueField(CGEventField(rawValue: 0x33)!, value: Int64(windowID))
         return event
+    }
+
+    private func isValidMenuBarPoint(_ point: CGPoint) -> Bool {
+        guard point.x.isFinite, point.y.isFinite, point.x >= 1, point.y >= 0 else { return false }
+        return NSScreen.screens.contains { screen in
+            screen.frame.insetBy(dx: -1, dy: -1).contains(point) && point.y <= screen.frame.maxY
+        }
     }
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? {
