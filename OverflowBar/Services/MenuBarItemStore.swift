@@ -55,6 +55,23 @@ final class MenuBarItemStore: ObservableObject {
 
     var selectedItems: [MenuBarItem] { items.filter { $0.isSelected && !$0.isProtectedSystemItem } }
 
+    /// Items currently in OverflowBar's off-screen staging area but absent
+    /// from the persisted selection set. This recovers protected macOS
+    /// controls left there by an older build, including generic Control
+    /// Center windows whose accessibility description is only "status menu"
+    /// (for example Bluetooth on macOS 26).
+    var overflowItems: [MenuBarItem] {
+        let selectedIDs = Set(selectedItems.map(\.id))
+        return items
+            .filter { selectedIDs.contains($0.id) || isOffscreen($0) }
+            .sorted { $0.frame.minX < $1.frame.minX }
+    }
+
+    private func isOffscreen(_ item: MenuBarItem) -> Bool {
+        guard item.windowID != nil else { return false }
+        return item.frame.maxX <= 0 && item.frame.minY >= 0 && item.frame.maxY <= 40
+    }
+
     /// Starts resilient discovery. Polling is intentional: NSWorkspace launch
     /// notifications omit LSUIElement/background applications, and status
     /// items can be created or replaced without their process launching.
@@ -144,7 +161,7 @@ final class MenuBarItemStore: ObservableObject {
         // intentionally do not auto-run synthetic Command-drag layout here.
         // The user can apply the layout explicitly after confirming the list.
 
-        let captureCandidates = preferences.hasCompletedOnboarding ? selectedItems : items
+        let captureCandidates = preferences.hasCompletedOnboarding ? overflowItems : items
         refreshImages(for: captureCandidates) { [weak self] in
             guard let self else { return }
             self.onLayoutStateChanged?()
@@ -212,7 +229,7 @@ final class MenuBarItemStore: ObservableObject {
     func refreshImages(for target: [MenuBarItem]? = nil, completion: (() -> Void)? = nil) {
         captureGeneration += 1
         let generation = captureGeneration
-        let candidates = target ?? selectedItems
+        let candidates = target ?? overflowItems
         isCapturing = true
         Task { [weak self] in
             guard let self else { return }

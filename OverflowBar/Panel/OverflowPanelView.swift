@@ -55,8 +55,8 @@ struct OverflowPanelView: View {
     private var panelContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
-                if store.selectedItems.isEmpty { Text("No menu bar items selected").foregroundStyle(.secondary).padding(.horizontal, 12) }
-                ForEach(store.selectedItems) { item in
+                if store.overflowItems.isEmpty { Text("No menu bar items selected").foregroundStyle(.secondary).padding(.horizontal, 12) }
+                ForEach(store.overflowItems) { item in
                     OverflowItemView(item: item, action: { onActivate(item) }, rightAction: { onRightActivate(item) })
                 }
             }

@@ -4,6 +4,13 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.15] - 2026-08-04
+
+- Included hidden menu-bar windows in the OverflowBar panel so protected system controls cannot disappear after a previous layout move.
+- Captured hidden Wi-Fi, Bluetooth, Siri, Battery, and other Control Center items instead of limiting capture to persisted application selections.
+- Added localized and descriptive system-item recognition, including Wi-Fi descriptions such as “Wi‑Fi, connected” and generic macOS 26 status-menu windows.
+- Preserved the startup pointer-safety rule: discovery and capture remain observational and do not inject synthetic layout events.
+
 ## [1.0.14] - 2026-08-04
 
 - Prevented startup discovery and icon capture from injecting synthetic menu-bar events.
@@ -99,7 +106,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.14...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.15...HEAD
+[1.0.15]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.13...v1.0.14
 [1.0.11]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.10...v1.0.11
 [1.0.10]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.9...v1.0.10

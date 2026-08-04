@@ -1,6 +1,56 @@
 import AppKit
 import ApplicationServices
 
+enum MenuBarSystemItemClassifier {
+    static func isProtected(_ title: String, owner: String? = nil) -> Bool {
+        let normalized = normalize(title)
+        if normalized.contains("clock") ||
+            normalized.contains("battery") ||
+            normalized.contains("siri") ||
+            normalized.contains("wifi") ||
+            normalized.contains("bluetooth") ||
+            normalized.contains("bentobox") ||
+            normalized.contains("audiovideomodule") ||
+            normalized.contains("audioandvideocontrols") ||
+            normalized.contains("controlcenter") {
+            return true
+        }
+
+        // macOS 26 gives several Control Center-owned status items only a
+        // generic WindowServer/AX title (for example "Item-0" or
+        // "status menu"). Their owner is the reliable system boundary.
+        let normalizedOwner = normalize(owner ?? "")
+        return normalizedOwner.contains("controlcenter") &&
+            ["item-0", "item0", "statusmenu", "menubaritem"].contains(normalized)
+    }
+
+    static func canonicalName(_ title: String, owner: String? = nil) -> String {
+        let normalized = normalize(title)
+        if normalized.contains("wifi") { return "WiFi" }
+        if normalized.contains("bluetooth") { return "Bluetooth" }
+        if normalized.contains("battery") { return "Battery" }
+        if normalized.contains("siri") { return "Siri" }
+        if normalized.contains("clock") { return "Clock" }
+        if normalized.contains("controlcenter") { return "Control Center" }
+        if normalized.contains("audioandvideocontrols") || normalized.contains("audiovideomodule") {
+            return "Audio and Video Controls"
+        }
+        if normalized.contains("bentobox") { return "Control Center" }
+        if isProtected(title, owner: owner) && normalize(owner ?? "").contains("controlcenter") {
+            return "Control Center Item"
+        }
+        return title
+    }
+
+    private static func normalize(_ title: String) -> String {
+        title
+            .replacingOccurrences(of: "‑", with: "-")
+            .replacingOccurrences(of: "–", with: "-")
+            .replacingOccurrences(of: " ", with: "")
+            .lowercased()
+    }
+}
+
 /// Accessibility-backed description of one right-side menu bar control.
 final class MenuBarItem: Identifiable {
     let id: String
@@ -12,7 +62,7 @@ final class MenuBarItem: Identifiable {
     var supportsPressAction: Bool
     let windowID: CGWindowID?
     let ownerPID: pid_t?
-    let isProtectedSystemItem: Bool
+    var isProtectedSystemItem: Bool
     var iconImage: NSImage?
     let applicationIcon: NSImage?
     var isSelected: Bool

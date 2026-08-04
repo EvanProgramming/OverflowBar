@@ -59,9 +59,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         // Images are retained across panel opens. Capturing every status-item
         // window here is expensive and causes unnecessary ScreenCaptureKit /
         // WindowServer work; refresh only items that still lack an image.
-        store.refreshImages(for: store.selectedItems.filter {
-            $0.displayImage == nil && $0.bundleIdentifier != "Control Center"
-        })
+        store.refreshImages(for: store.overflowItems.filter { $0.displayImage == nil })
         guard positionPanel(relativeTo: button) else { return }
         presentation.isPresented = false
         panel.orderFrontRegardless()
@@ -121,7 +119,7 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         let usableFrame = usableFrame(for: screen)
         guard !usableFrame.isNull, usableFrame.width > 0, usableFrame.height > 0 else { return false }
 
-        let desiredWidth = max(CGFloat(store.selectedItems.count) * OverflowPanelView.itemSlotWidth + 16, 104)
+        let desiredWidth = max(CGFloat(store.overflowItems.count) * OverflowPanelView.itemSlotWidth + 16, 104)
         let maximumWidth = max(96, min(720, usableFrame.width - 16))
         let width = min(desiredWidth, maximumWidth)
         let height = OverflowPanelView.preferredHeight

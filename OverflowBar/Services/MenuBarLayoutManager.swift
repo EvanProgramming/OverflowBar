@@ -6,7 +6,6 @@ import OSLog
 /// The physical mouse cursor is never moved.
 final class MenuBarLayoutManager {
     private enum Placement { case left, right }
-    private let protectedSystemTitles = Set(["Battery", "Siri", "WiFi", "Clock", "BentoBox-0", "BentoBox", "AudioVideoModule"])
     private let logger = Logger(subsystem: "com.overflowbar.app", category: "layout")
     private let preferences: PreferencesStore
     private let initialWindowIDs: Set<CGWindowID>
@@ -44,7 +43,7 @@ final class MenuBarLayoutManager {
             return
         }
         logger.info("Hiding \(items.count, privacy: .public) items relative to window \(target.id, privacy: .public)")
-        let protectedWindowIDs = Set(windowRecords().filter { protectedSystemTitles.contains($0.title) }.map(\.id))
+        let protectedWindowIDs = Set(windowRecords().filter { MenuBarSystemItemClassifier.isProtected($0.title, owner: $0.owner) }.map(\.id))
         let managed = items.filter {
             !$0.isProtectedSystemItem && $0.windowID != target.id && $0.windowID.map(protectedWindowIDs.contains) != true
         }.filter(needsHiding)
@@ -136,7 +135,7 @@ final class MenuBarLayoutManager {
             return
         }
         let hidden = windowRecords().filter {
-            protectedSystemTitles.contains($0.title) && $0.frame.maxX <= 0
+            MenuBarSystemItemClassifier.isProtected($0.title, owner: $0.owner) && $0.frame.maxX <= 0
         }
         restoreProtectedSequentially(hidden, index: 0, target: target, movedCount: 0, completion: completion)
     }
@@ -173,7 +172,7 @@ final class MenuBarLayoutManager {
         }
     }
 
-    private func restoreProtectedSequentially(_ records: [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)], index: Int, target: (id: CGWindowID, frame: CGRect), movedCount: Int, completion: @escaping (Int) -> Void) {
+    private func restoreProtectedSequentially(_ records: [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)], index: Int, target: (id: CGWindowID, frame: CGRect), movedCount: Int, completion: @escaping (Int) -> Void) {
         guard index < records.count else { completion(movedCount); return }
         let record = records[index]
         let item = MenuBarItem(
@@ -332,9 +331,9 @@ final class MenuBarLayoutManager {
         }
     }
 
-    private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] { Self.fetchWindowRecords() }
+    private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] { Self.fetchWindowRecords() }
 
-    private static func fetchWindowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] {
+    private static func fetchWindowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] {
         let list = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
         return list.compactMap { info in
             guard (info[kCGWindowLayer as String] as? Int) == 25,
@@ -343,7 +342,7 @@ final class MenuBarLayoutManager {
                   let b = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
             let frame = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
             guard frame.minY == 0, frame.height <= 40 else { return nil }
-            return (CGWindowID(id), pid_t(pid), info[kCGWindowName as String] as? String ?? "", frame)
+            return (CGWindowID(id), pid_t(pid), info[kCGWindowName as String] as? String ?? "", info[kCGWindowOwnerName as String] as? String ?? "", frame)
         }
     }
 }
