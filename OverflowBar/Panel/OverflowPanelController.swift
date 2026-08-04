@@ -32,6 +32,9 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         panel.contentView = NSHostingView(rootView: OverflowPanelView(store: store, presentation: presentation, onActivate: { [weak self] item in
             self?.close()
             self?.store.activate(item)
+        }, onRightActivate: { [weak self] item in
+            self?.close()
+            self?.store.activate(item, mouseButton: .right)
         }))
         panel.orderOut(nil)
         screenObserver = NotificationCenter.default.addObserver(
@@ -75,6 +78,11 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         }
         if let localEventMonitor { NSEvent.removeMonitor(localEventMonitor) }
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            if event.type == .rightMouseDown,
+               let self,
+               self.panel.contentView?.hitTest(event.locationInWindow) != nil {
+                return event
+            }
             DispatchQueue.main.async { self?.close() }
             return event
         }

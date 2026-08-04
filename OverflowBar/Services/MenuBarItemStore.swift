@@ -344,12 +344,12 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.restoreProtectedSystemItems { _ in completion() }
     }
 
-    func activate(_ item: MenuBarItem, retryCount: Int = 0) {
+    func activate(_ item: MenuBarItem, mouseButton: CGMouseButton = .left, retryCount: Int = 0) {
         guard activatingItemID == nil else { return }
         cancelPendingRehide()
         activatingItemID = item.id
         lastActivationError = nil
-        if activator.activateDirectly(item) {
+        if mouseButton == .left, activator.activateDirectly(item) {
             finishActivation()
             return
         }
@@ -357,18 +357,31 @@ final class MenuBarItemStore: ObservableObject {
         // only when we already had an AX-backed item; window-backed items skip
         // this expensive full-tree walk and use the direct per-process path
         // after their short reveal.
-        if item.axElement != nil, activateUsingFreshAccessibility(item) {
+        if mouseButton == .left, item.axElement != nil, activateUsingFreshAccessibility(item) {
             finishActivation()
             return
         }
-        if activator.activateViaAccessibilityHitTest(item) {
+        if mouseButton == .left, activator.activateViaAccessibilityHitTest(item) {
             finishActivation()
+            return
+        }
+        if mouseButton == .right, !layoutManager.needsHiding(item) {
+            let pointer = layoutManager.currentPointerLocation()
+            activator.activateRightClick(item) { [weak self] success in
+                guard let self else { return }
+                self.layoutManager.restorePointerLocation(pointer)
+                guard success else {
+                    self.retryActivation(item, mouseButton: mouseButton, retryCount: retryCount, message: "Unable to open the context menu for \(item.tooltip).")
+                    return
+                }
+                self.finishActivation()
+            }
             return
         }
         // Preserve the real pointer across the complete reveal → click →
         // rehide transaction. Each synthetic event can otherwise overwrite
         // WindowServer's logical location before the next phase starts.
-        activateByTemporarilyRevealing(item, restoreCursorLocation: layoutManager.currentPointerLocation(), retryCount: retryCount)
+        activateByTemporarilyRevealing(item, mouseButton: mouseButton, restoreCursorLocation: layoutManager.currentPointerLocation(), retryCount: retryCount)
     }
 
     private func activateUsingFreshAccessibility(_ item: MenuBarItem) -> Bool {
@@ -378,11 +391,11 @@ final class MenuBarItemStore: ObservableObject {
         return activator.activateDirectly(item)
     }
 
-    private func activateByTemporarilyRevealing(_ item: MenuBarItem, restoreCursorLocation: CGPoint?, retryCount: Int) {
+    private func activateByTemporarilyRevealing(_ item: MenuBarItem, mouseButton: CGMouseButton, restoreCursorLocation: CGPoint?, retryCount: Int) {
         layoutManager.reveal(item, restoreCursorLocation: restoreCursorLocation) { [weak self] moved in
             guard let self else { return }
             guard moved else {
-                self.retryActivation(item, retryCount: retryCount, message: "Unable to temporarily show \(item.tooltip).")
+                self.retryActivation(item, mouseButton: mouseButton, retryCount: retryCount, message: "Unable to temporarily show \(item.tooltip).")
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
@@ -391,18 +404,19 @@ final class MenuBarItemStore: ObservableObject {
                 // WindowServer element instead of relying on the stale AX
                 // reference captured during scanning. This is both faster
                 // and safer than injecting a mouse event into Control Center.
-                if self.activator.activateDirectly(item)
+                if mouseButton == .left,
+                   self.activator.activateDirectly(item)
                     || self.activator.activateViaAccessibilityHitTest(item) {
                     self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                     return
                 }
-                self.activator.activateMovedItem(item) { [weak self] success in
+                self.activator.activateMovedItem(item, mouseButton: mouseButton) { [weak self] success in
                     guard let self else { return }
                     self.layoutManager.restorePointerLocation(restoreCursorLocation)
                     guard success else {
                         self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
-                        self.retryActivation(item, retryCount: retryCount, message: "Unable to activate \(item.tooltip).")
+                        self.retryActivation(item, mouseButton: mouseButton, retryCount: retryCount, message: "Unable to activate \(item.tooltip).")
                         return
                     }
                     self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
@@ -412,7 +426,7 @@ final class MenuBarItemStore: ObservableObject {
         }
     }
 
-    private func retryActivation(_ item: MenuBarItem, retryCount: Int, message: String) {
+    private func retryActivation(_ item: MenuBarItem, mouseButton: CGMouseButton, retryCount: Int, message: String) {
         guard retryCount < 1 else {
             lastActivationError = message
             finishActivation()
@@ -423,7 +437,7 @@ final class MenuBarItemStore: ObservableObject {
         // and the click. A single fresh pass handles that race without
         // returning to the old multi-second activation transaction.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            self?.activate(item, retryCount: retryCount + 1)
+            self?.activate(item, mouseButton: mouseButton, retryCount: retryCount + 1)
         }
     }
 

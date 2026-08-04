@@ -3,6 +3,7 @@ import SwiftUI
 struct OverflowItemView: View {
     let item: MenuBarItem
     let action: () -> Void
+    let rightAction: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -28,6 +29,7 @@ struct OverflowItemView: View {
             }
         }
         .buttonStyle(OverflowItemButtonStyle(reduceMotion: reduceMotion))
+        .overlay { RightClickCaptureView(action: rightAction) }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onHover { hovering in
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { isHovering = hovering }
@@ -35,6 +37,32 @@ struct OverflowItemView: View {
         .help(item.tooltip)
         .accessibilityLabel(item.tooltip)
     }
+}
+
+private struct RightClickCaptureView: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> RightClickView {
+        let view = RightClickView()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ nsView: RightClickView, context: Context) {
+        nsView.action = action
+    }
+}
+
+private final class RightClickView: NSView {
+    var action: (() -> Void)?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let event = NSApp.currentEvent,
+              event.type == .rightMouseDown || event.type == .rightMouseUp else { return nil }
+        return self
+    }
+
+    override func rightMouseDown(with event: NSEvent) { action?() }
 }
 
 private struct OverflowItemButtonStyle: ButtonStyle {

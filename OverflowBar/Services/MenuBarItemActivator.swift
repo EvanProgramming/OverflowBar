@@ -28,11 +28,11 @@ final class MenuBarItemActivator {
     }
 
     /// Clicks an item after it has been temporarily moved into the visible menu bar.
-    func activateMovedItem(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
+    func activateMovedItem(_ item: MenuBarItem, mouseButton: CGMouseButton = .left, completion: @escaping (Bool) -> Void) {
         if let windowID = item.windowID, let ownerPID = item.ownerPID,
            let source = CGEventSource(stateID: .privateState),
-           let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source),
-           let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source) {
+           let down = targetedEvent(type: mouseButton == .right ? .rightMouseDown : .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: mouseButton),
+           let up = targetedEvent(type: mouseButton == .right ? .rightMouseUp : .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: mouseButton) {
             // Control Center owns most status-item windows on recent macOS,
             // but it does not consistently consume events posted directly to
             // its PID. A session-tap click follows the same WindowServer path
@@ -47,10 +47,27 @@ final class MenuBarItemActivator {
         completion(false)
     }
 
-    private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource) -> CGEvent? {
+    /// Sends a right-click to an item that is already visible. Accessibility
+    /// exposes AXPress only (left-click semantics), so context-menu items
+    /// need a real right mouse event instead.
+    func activateRightClick(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
+        guard let source = CGEventSource(stateID: .privateState) else { completion(false); return }
+        let point = CGPoint(x: item.frame.midX, y: item.frame.midY)
+        guard let down = CGEvent(mouseEventSource: source, mouseType: .rightMouseDown, mouseCursorPosition: point, mouseButton: .right),
+              let up = CGEvent(mouseEventSource: source, mouseType: .rightMouseUp, mouseCursorPosition: point, mouseButton: .right) else { completion(false); return }
+        down.setIntegerValueField(.mouseEventClickState, value: 1)
+        up.setIntegerValueField(.mouseEventClickState, value: 1)
+        down.post(tap: .cgSessionEventTap)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+            up.post(tap: .cgSessionEventTap)
+            completion(true)
+        }
+    }
+
+    private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource, mouseButton: CGMouseButton) -> CGEvent? {
         let point = currentFrame(windowID: windowID).map { CGPoint(x: $0.midX, y: $0.midY) }
             ?? CGPoint(x: item.frame.midX, y: item.frame.midY)
-        guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left) else { return nil }
+        guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: mouseButton) else { return nil }
         event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
         event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
         event.setIntegerValueField(.mouseEventClickState, value: 1)

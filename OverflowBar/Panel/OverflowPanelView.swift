@@ -9,6 +9,7 @@ struct OverflowPanelView: View {
     @ObservedObject var store: MenuBarItemStore
     @ObservedObject var presentation: OverflowPanelPresentationState
     let onActivate: (MenuBarItem) -> Void
+    let onRightActivate: (MenuBarItem) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -55,7 +56,9 @@ struct OverflowPanelView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
                 if store.selectedItems.isEmpty { Text("No menu bar items selected").foregroundStyle(.secondary).padding(.horizontal, 12) }
-                ForEach(store.selectedItems) { item in OverflowItemView(item: item) { onActivate(item) } }
+                ForEach(store.selectedItems) { item in
+                    OverflowItemView(item: item, action: { onActivate(item) }, rightAction: { onRightActivate(item) })
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
