@@ -1,24 +1,23 @@
-# OverflowBar 1.0.15
+# OverflowBar 1.0.16
 
-OverflowBar 1.0.15 is a stable patch release that prevents system menu-bar controls from disappearing after a hidden layout move.
+OverflowBar 1.0.16 is a stable patch release that clarifies menu-bar activation status without changing the fast activation behavior.
 
 ## Fixed
 
-- Hidden menu-bar windows are now included in the OverflowBar panel even when they are not present in the persisted application selection set.
-- Hidden Wi-Fi, Bluetooth, Siri, Battery, and Control Center icons are captured and shown instead of being silently dropped.
-- Added recognition for localized Wi-Fi descriptions and generic macOS 26 Control Center status-menu windows.
-- Panel refreshes now recapture any missing hidden-system icon image.
-- Startup discovery and capture remain observational, preserving the pointer-state safety fix from 1.0.14.
+- WindowServer-backed menu-bar items now show a fast activation indicator in Settings instead of a misleading warning triangle.
+- The warning indicator is reserved for items with no available activation path.
+- Preserved the non-blocking menu-bar scanner and low-latency activation path from the previous stability fixes.
 
 ## Verification
 
 - Debug and Release builds completed successfully.
-- Release Settings smoke test loaded 14 of 14 menu-bar icons, including hidden Control Center windows.
+- Installed Release build loaded 14 of 14 menu-bar icons in Settings.
+- WindowServer-backed rows reported `bolt.fill` with the help text `Uses fast WindowServer activation`.
 - Release DMG verification and SHA-256 checks are included with the release assets.
 
 ## Install
 
-1. Download `OverflowBar-1.0.15.dmg`.
+1. Download `OverflowBar-1.0.16.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
 

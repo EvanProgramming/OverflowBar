@@ -4,6 +4,12 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+## [1.0.16] - 2026-08-04
+
+- Clarified menu-bar activation status in Settings: WindowServer-backed items now show the fast activation indicator instead of a misleading warning.
+- Kept the warning indicator only for items that have no available activation path.
+- Preserved the non-blocking scanner and fast activation behavior introduced in the previous stability fixes.
+
 ## [1.0.15] - 2026-08-04
 
 - Included hidden menu-bar windows in the OverflowBar panel so protected system controls cannot disappear after a previous layout move.
@@ -106,7 +112,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.15...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.16...HEAD
+[1.0.16]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.15...v1.0.16
 [1.0.15]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.13...v1.0.14
 [1.0.11]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.10...v1.0.11
