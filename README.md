@@ -17,6 +17,15 @@ OverflowBar keeps a crowded Mac menu bar tidy by moving selected status items be
 
 **[Download the latest DMG](https://github.com/EvanProgramming/OverflowBar/releases/latest)** · [Installation](docs/INSTALLATION.md) · [User guide](docs/USAGE.md) · [Roadmap](docs/ROADMAP.md)
 
+## A focused alternative
+
+OverflowBar is deliberately small in scope. Feature-heavy menu-bar managers such as Ice and similar tools can be useful when you want an entire toolbox of customization; OverflowBar takes a simpler route and focuses on one job: giving crowded menu bars a native second row.
+
+- **Lightweight by design** — fewer layers, background services, and settings to keep active when all you need is more menu-bar space.
+- **Native macOS behavior** — built with SwiftUI, AppKit, Accessibility, WindowServer, and ScreenCaptureKit so the original controls remain the controls you use.
+- **A simple mental model** — choose the icons, hide them, reveal the second row, and click the original menu-bar action. There is no replacement launcher or extra workspace to learn.
+- **Focused performance** — discovery, capture, and activation are kept event-driven and only do work when the menu bar or the user actually needs it.
+
 ## Why OverflowBar?
 
 - **More room, less clutter** — choose which third-party status items stay behind the OverflowBar arrow.
