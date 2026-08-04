@@ -35,7 +35,6 @@ final class MenuBarItemStore: ObservableObject {
     private var refreshAgain = false
     private var isApplyingLayout = false
     private var shouldApplyLayoutAgain = false
-    private var isRestoringProtectedItems = false
     private var layoutRepairAttempts = 0
     var onImagesReady: (() -> Void)?
     var onLayoutStateChanged: (() -> Void)?
@@ -80,36 +79,12 @@ final class MenuBarItemStore: ObservableObject {
         RunLoop.main.add(timer, forMode: .common)
         monitorTimer = timer
 
-        // A previous process can have left protected macOS status items in
-        // the off-screen staging area. Recover only those known system items
-        // after the status-item host has appeared; this is bounded and does
-        // not move ordinary user items or run during an active click.
-        for delay in [0.8, 2.0, 5.0, 10.0] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.restoreHiddenProtectedItemsIfNeeded()
-            }
-        }
-
         // Login items do not become ready at the same time. These bounded
         // rescans fill in late windows/icons without requiring user action.
         for delay in [0.8, 2.0, 5.0, 10.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.items.isEmpty || !self.isReadyForManagedLayout else { return }
                 self.scheduleRefresh(after: 0, reason: "startup retry")
-            }
-        }
-    }
-
-    private func restoreHiddenProtectedItemsIfNeeded() {
-        guard !isRestoringProtectedItems,
-              !CGEventSource.buttonState(.combinedSessionState, button: .left),
-              !CGEventSource.buttonState(.combinedSessionState, button: .right) else { return }
-        isRestoringProtectedItems = true
-        layoutManager.restoreProtectedSystemItems { [weak self] moved in
-            guard let self else { return }
-            self.isRestoringProtectedItems = false
-            if moved > 0 {
-                self.scheduleRefresh(after: 0.2, reason: "protected system item recovery")
             }
         }
     }
@@ -174,11 +149,11 @@ final class MenuBarItemStore: ObservableObject {
             guard let self else { return }
             self.onLayoutStateChanged?()
             self.onImagesReady?()
-            if self.layoutManagementEnabled,
-               self.isReadyForManagedLayout,
-               self.selectedItems.contains(where: self.layoutManager.needsHiding) {
-                self.scheduleLayoutRetry(after: 0.35)
-            }
+            // Discovery and image capture must remain observational. Applying
+            // the hidden layout injects a synthetic Command-drag sequence
+            // into WindowServer; doing that from a refresh can corrupt the
+            // global pointer state before the user has interacted with the
+            // app. Layout changes are initiated explicitly by the user.
             if self.refreshAgain {
                 self.refreshAgain = false
                 self.scheduleRefresh(after: 0.2, reason: "coalesced refresh")
