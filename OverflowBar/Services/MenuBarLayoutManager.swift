@@ -70,8 +70,25 @@ final class MenuBarLayoutManager {
     /// Returns true only while a managed item is still occupying the visible
     /// menu bar, so repair passes focus on actual duplicate icons.
     func needsHiding(_ item: MenuBarItem) -> Bool {
-        guard let windowID = item.windowID, let frame = currentFrame(windowID: windowID) else { return false }
-        return frame.maxX > 0
+        guard item.windowID != nil else { return false }
+        return isVisible(item)
+    }
+
+    /// Returns whether WindowServer currently places the item in a real menu
+    /// bar slot. Hidden items intentionally retain their original window
+    /// identity, but their frame is moved completely off the active display.
+    /// Activation must distinguish that state from a visible item; using
+    /// `needsHiding` for both meanings caused hidden right-clicks to be sent
+    /// directly to invalid (negative) coordinates.
+    func isVisible(_ item: MenuBarItem) -> Bool {
+        guard let windowID = item.windowID else {
+            // Accessibility-backed items are never moved by the layout
+            // manager and therefore have no WindowServer ID. Their scanner
+            // frame is the authoritative visible position.
+            return Self.isVisibleMenuBarFrame(item.frame)
+        }
+        guard let frame = currentFrame(windowID: windowID) else { return false }
+        return Self.isVisibleMenuBarFrame(frame)
     }
 
     /// Quartz screen coordinates captured before any synthetic menu-bar event.
@@ -291,6 +308,21 @@ final class MenuBarLayoutManager {
     }
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? { windowRecords().first { $0.id == windowID }?.frame }
+
+    private static func isVisibleMenuBarFrame(_ frame: CGRect) -> Bool {
+        guard frame.width > 4, frame.height > 4, frame.height <= 40 else { return false }
+        return activeDisplayBounds().contains { display in
+            frame.intersects(display) && abs(frame.minY - display.minY) <= 2
+        }
+    }
+
+    private static func activeDisplayBounds() -> [CGRect] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).map(CGDisplayBounds)
+    }
 
     private static func isValidPointerLocation(_ point: CGPoint) -> Bool {
         guard point.x.isFinite, point.y.isFinite, point.x != 0 || point.y != 0 else { return false }

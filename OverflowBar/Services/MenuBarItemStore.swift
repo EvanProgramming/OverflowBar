@@ -365,7 +365,7 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
-        if mouseButton == .right, !layoutManager.needsHiding(item) {
+        if mouseButton == .right, layoutManager.isVisible(item) {
             let pointer = layoutManager.currentPointerLocation()
             activator.activateRightClick(item) { [weak self] success in
                 guard let self else { return }

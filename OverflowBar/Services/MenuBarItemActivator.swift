@@ -29,10 +29,14 @@ final class MenuBarItemActivator {
 
     /// Clicks an item after it has been temporarily moved into the visible menu bar.
     func activateMovedItem(_ item: MenuBarItem, mouseButton: CGMouseButton = .left, completion: @escaping (Bool) -> Void) {
+        if mouseButton == .right {
+            activateRightClick(item, completion: completion)
+            return
+        }
         if let windowID = item.windowID, let ownerPID = item.ownerPID,
            let source = CGEventSource(stateID: .privateState),
-           let down = targetedEvent(type: mouseButton == .right ? .rightMouseDown : .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: mouseButton),
-           let up = targetedEvent(type: mouseButton == .right ? .rightMouseUp : .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: mouseButton) {
+           let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left),
+           let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left) {
             // Control Center owns most status-item windows on recent macOS,
             // but it does not consistently consume events posted directly to
             // its PID. A session-tap click follows the same WindowServer path
@@ -51,14 +55,20 @@ final class MenuBarItemActivator {
     /// exposes AXPress only (left-click semantics), so context-menu items
     /// need a real right mouse event instead.
     func activateRightClick(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
+        activateRightClick(item, attempt: 0, completion: completion)
+    }
+
+    private func activateRightClick(_ item: MenuBarItem, attempt: Int, completion: @escaping (Bool) -> Void) {
         guard let source = CGEventSource(stateID: .privateState) else { completion(false); return }
-        let point: CGPoint
-        if let windowID = item.windowID, let frame = currentFrame(windowID: windowID) {
-            point = CGPoint(x: frame.midX, y: frame.midY)
-        } else {
-            guard let screen = NSScreen.screens.first(where: { $0.frame.minX <= item.frame.midX && $0.frame.maxX >= item.frame.midX }) ?? NSScreen.main else { completion(false); return }
-            let y = item.frame.midY <= 50 ? item.frame.midY : screen.frame.maxY - item.frame.midY
-            point = CGPoint(x: item.frame.midX, y: y)
+        guard let point = visiblePoint(for: item) else {
+            // WindowServer can publish the new frame a few ticks after the
+            // reveal verification callback. Retry the lookup briefly instead
+            // of reporting a false activation failure or using an old frame.
+            guard attempt < 2 else { completion(false); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+                self?.activateRightClick(item, attempt: attempt + 1, completion: completion)
+            }
+            return
         }
         guard isValidMenuBarPoint(point) else { completion(false); return }
         guard let down = CGEvent(mouseEventSource: source, mouseType: .rightMouseDown, mouseCursorPosition: point, mouseButton: .right),
@@ -90,10 +100,64 @@ final class MenuBarItemActivator {
     }
 
     private func isValidMenuBarPoint(_ point: CGPoint) -> Bool {
-        guard point.x.isFinite, point.y.isFinite, point.x >= 1, point.y >= 0 else { return false }
-        return NSScreen.screens.contains { screen in
-            screen.frame.insetBy(dx: -1, dy: -1).contains(point) && point.y <= screen.frame.maxY
+        guard point.x.isFinite, point.y.isFinite else { return false }
+        return activeDisplayBounds().contains { display in
+            display.contains(point) && point.y >= display.minY && point.y <= display.minY + 50
         }
+    }
+
+    /// Resolves a fresh WindowServer frame before every synthetic event. The
+    /// Control Center process can rebuild a status-item window while the item
+    /// remains logically the same. If the original window number disappeared,
+    /// choose the nearest visible layer-25 window owned by that process rather
+    /// than sending a stale event to (0, 0).
+    private func visiblePoint(for item: MenuBarItem) -> CGPoint? {
+        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+        let records: [(id: CGWindowID, pid: pid_t, frame: CGRect)] = windows.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 25,
+                  let id = info[kCGWindowNumber as String] as? Int,
+                  let pid = info[kCGWindowOwnerPID as String] as? Int,
+                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+            let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+            guard isVisibleMenuBarFrame(frame) else { return nil }
+            return (CGWindowID(id), pid_t(pid), frame)
+        }
+        if let windowID = item.windowID,
+           let exact = records.first(where: { $0.id == windowID }) {
+            return CGPoint(x: exact.frame.midX, y: exact.frame.midY)
+        }
+        if let ownerPID = item.ownerPID {
+            let preferredX = item.frame.midX
+            return records
+                .filter { $0.pid == ownerPID }
+                .min(by: { abs($0.frame.midX - preferredX) < abs($1.frame.midX - preferredX) })
+                .map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) }
+        }
+        // AX-backed items do not carry a window number. This fallback is only
+        // allowed for an already-visible positive frame; hidden items take
+        // the reveal path in MenuBarItemStore instead.
+        let fallback = CGPoint(x: item.frame.midX, y: item.frame.midY)
+        if isValidMenuBarPoint(fallback) { return fallback }
+        guard let screen = NSScreen.screens.first(where: {
+            $0.frame.minX <= item.frame.midX && $0.frame.maxX >= item.frame.midX
+        }) ?? NSScreen.main else { return nil }
+        let converted = CGPoint(x: item.frame.midX, y: screen.frame.maxY - item.frame.midY)
+        return isValidMenuBarPoint(converted) ? converted : nil
+    }
+
+    private func isVisibleMenuBarFrame(_ frame: CGRect) -> Bool {
+        guard frame.width > 4, frame.height > 4, frame.height <= 40 else { return false }
+        return activeDisplayBounds().contains { display in
+            frame.intersects(display) && abs(frame.minY - display.minY) <= 2
+        }
+    }
+
+    private func activeDisplayBounds() -> [CGRect] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+        return displays.prefix(Int(count)).map(CGDisplayBounds)
     }
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? {
