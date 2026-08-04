@@ -22,6 +22,7 @@ jobs:
         run: |
           plutil -lint OverflowBar/Resources/Info.plist
           bash -n scripts/create-dmg.sh
+          bash scripts/validate-homebrew-cask.sh
           ruby scripts/check-doc-links.rb
       - name: Build Debug
         run: >-

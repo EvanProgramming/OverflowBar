@@ -4,6 +4,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+- Added a third-party Homebrew Cask installation path backed by versioned GitHub Release artifacts and checksum validation.
+
 ## [1.0.16] - 2026-08-04
 
 - Clarified menu-bar activation status in Settings: WindowServer-backed items now show the fast activation indicator instead of a misleading warning.

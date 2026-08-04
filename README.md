@@ -15,7 +15,7 @@
 
 OverflowBar keeps a crowded Mac menu bar tidy by moving selected status items behind one persistent arrow, then revealing them in a fast, native second row whenever you need them.
 
-**[Download the latest DMG](https://github.com/EvanProgramming/OverflowBar/releases/latest)** · [Installation](docs/INSTALLATION.md) · [User guide](docs/USAGE.md) · [Roadmap](docs/ROADMAP.md)
+**[Install with Homebrew](docs/HOMEBREW.md)** · [Download the latest DMG](https://github.com/EvanProgramming/OverflowBar/releases/latest) · [Installation](docs/INSTALLATION.md) · [User guide](docs/USAGE.md) · [Roadmap](docs/ROADMAP.md)
 
 ## A focused alternative
 

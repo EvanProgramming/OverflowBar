@@ -13,16 +13,17 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
 ## Checklist
 
 1. Update `CFBundleShortVersionString` and `CFBundleVersion` in `OverflowBar/Resources/Info.plist`.
-2. Move user-visible changes into `CHANGELOG.md` and update `RELEASE_NOTES.md`.
-3. Build Debug and Release configurations.
-4. Run live checks:
+2. Update `Casks/overflowbar.rb` with the release version and the SHA-256 of the matching DMG.
+3. Move user-visible changes into `CHANGELOG.md` and update `RELEASE_NOTES.md`.
+4. Build Debug and Release configurations.
+5. Run live checks:
    - arrow is present
    - selected third-party items are managed
    - protected system items remain visible
    - second row opens and closes
    - direct and temporary-reveal activation work
    - Safe Reset and normal quit restore the layout
-5. Build and verify the DMG:
+6. Build and verify the DMG:
 
    ```bash
    ./scripts/create-dmg.sh
@@ -30,8 +31,14 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
    shasum -a 256 -c dist/OverflowBar-<version>.dmg.sha256
    ```
 
-6. Commit and push the release source.
-7. Tag the exact release commit:
+7. Validate the Homebrew Cask metadata:
+
+   ```bash
+   bash scripts/validate-homebrew-cask.sh
+   ```
+
+8. Commit and push the release source.
+9. Tag the exact release commit:
 
    ```bash
    git tag v<version>

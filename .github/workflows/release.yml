@@ -31,6 +31,7 @@ jobs:
           test "${GITHUB_REF_NAME}" = "v${app_version}"
           plutil -lint OverflowBar/Resources/Info.plist
           bash -n scripts/create-dmg.sh
+          bash scripts/validate-homebrew-cask.sh
 
       - name: Build release DMG
         run: ./scripts/create-dmg.sh
