@@ -6,7 +6,7 @@ import OSLog
 /// The physical mouse cursor is never moved.
 final class MenuBarLayoutManager {
     private enum Placement { case left, right }
-    private let protectedSystemTitles = Set(["Battery", "Siri", "WiFi", "Clock", "BentoBox-0", "BentoBox"])
+    private let protectedSystemTitles = Set(["Battery", "Siri", "WiFi", "Clock", "BentoBox-0", "BentoBox", "AudioVideoModule"])
     private let logger = Logger(subsystem: "com.overflowbar.app", category: "layout")
     private let preferences: PreferencesStore
     private let initialWindowIDs: Set<CGWindowID>
@@ -47,7 +47,7 @@ final class MenuBarLayoutManager {
         let protectedWindowIDs = Set(windowRecords().filter { protectedSystemTitles.contains($0.title) }.map(\.id))
         let managed = items.filter {
             !$0.isProtectedSystemItem && $0.windowID != target.id && $0.windowID.map(protectedWindowIDs.contains) != true
-        }
+        }.filter(needsHiding)
         publishCurrentFrames(for: managed)
         hideSequentially(managed, index: 0, movedCount: 0) { [weak self] movedCount in
             self?.publishCurrentFrames(for: managed)
@@ -65,6 +65,13 @@ final class MenuBarLayoutManager {
     func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
         guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
         move(item, relativeTo: target.id, placement: .left, restoreCursorLocation: restoreCursorLocation, completion: completion)
+    }
+
+    /// Returns true only while a managed item is still occupying the visible
+    /// menu bar, so repair passes focus on actual duplicate icons.
+    func needsHiding(_ item: MenuBarItem) -> Bool {
+        guard let windowID = item.windowID, let frame = currentFrame(windowID: windowID) else { return false }
+        return frame.maxX > 0
     }
 
     /// Quartz screen coordinates captured before any synthetic menu-bar event.

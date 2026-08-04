@@ -3,7 +3,7 @@ import ApplicationServices
 
 /// Reads status items exposed through each running application's accessibility tree.
 final class MenuBarScanner {
-    private let protectedSystemTitles = Set(["Clock", "Battery", "Siri", "WiFi", "BentoBox-0", "BentoBox"])
+    private let protectedSystemTitles = Set(["Clock", "Battery", "Siri", "WiFi", "BentoBox-0", "BentoBox", "AudioVideoModule"])
     private let excludedTitles = Set(["OverflowBarControlItem", "OverflowBarHiddenSection"])
     func scan(selectedIDs: Set<String>) -> [MenuBarItem] {
         var results = scanWindowBackedItems(selectedIDs: selectedIDs)

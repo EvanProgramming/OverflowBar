@@ -10,10 +10,21 @@ final class MenuBarItemActivator {
     func activateViaAccessibilityHitTest(_ item: MenuBarItem) -> Bool {
         let system = AXUIElementCreateSystemWide()
         var value: AXUIElement?
-        let point = CGPoint(x: item.frame.midX, y: item.frame.midY)
-        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &value) == .success,
-              let element = value else { return false }
-        return AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
+        // MenuBarScanner receives Quartz window bounds (origin at the top
+        // left), while Accessibility hit testing uses AppKit screen space
+        // (origin at the bottom left). Passing the raw Quartz y-coordinate
+        // makes the hit test land near the bottom of the display.
+        guard let screen = NSScreen.screens.first(where: { $0.frame.minX <= item.frame.midX && $0.frame.maxX >= item.frame.midX }) ?? NSScreen.main else { return false }
+        let rawPoint = CGPoint(x: item.frame.midX, y: item.frame.midY)
+        let convertedPoint = CGPoint(x: item.frame.midX, y: screen.frame.maxY - item.frame.midY)
+        let points = item.windowID == nil ? [rawPoint, convertedPoint] : [convertedPoint, rawPoint]
+        for point in points {
+            value = nil
+            guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &value) == .success,
+                  let element = value else { continue }
+            if AXUIElementPerformAction(element, kAXPressAction as CFString) == .success { return true }
+        }
+        return false
     }
 
     /// Clicks an item after it has been temporarily moved into the visible menu bar.

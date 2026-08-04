@@ -36,6 +36,7 @@ final class MenuBarItemStore: ObservableObject {
     private var isApplyingLayout = false
     private var shouldApplyLayoutAgain = false
     private var isRestoringProtectedItems = false
+    private var layoutRepairAttempts = 0
     var onImagesReady: (() -> Void)?
     var onLayoutStateChanged: (() -> Void)?
 
@@ -173,6 +174,11 @@ final class MenuBarItemStore: ObservableObject {
             guard let self else { return }
             self.onLayoutStateChanged?()
             self.onImagesReady?()
+            if self.layoutManagementEnabled,
+               self.isReadyForManagedLayout,
+               self.selectedItems.contains(where: self.layoutManager.needsHiding) {
+                self.scheduleLayoutRetry(after: 0.35)
+            }
             if self.refreshAgain {
                 self.refreshAgain = false
                 self.scheduleRefresh(after: 0.2, reason: "coalesced refresh")
@@ -280,7 +286,7 @@ final class MenuBarItemStore: ObservableObject {
         // middle of a real click or drag.
         if CGEventSource.buttonState(.combinedSessionState, button: .left) ||
             CGEventSource.buttonState(.combinedSessionState, button: .right) {
-            scheduleLayoutRetry()
+            scheduleLayoutRetry(after: 0.2)
             return
         }
         isApplyingLayout = true
@@ -288,19 +294,29 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero) { [weak self] count in
             guard let self else { return }
             self.isApplyingLayout = false
-            self.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
+            let remaining = self.selectedItems.filter(self.layoutManager.needsHiding)
+            if remaining.isEmpty {
+                self.layoutRepairAttempts = 0
+                self.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
+            } else if self.layoutRepairAttempts < 2 {
+                self.layoutRepairAttempts += 1
+                self.layoutOperationMessage = "Repairing hidden layout (\(remaining.count) remaining)…"
+                self.scheduleLayoutRetry(after: 0.4)
+            } else {
+                self.layoutOperationMessage = "Hidden layout incomplete (\(remaining.count) still visible). Try Apply Hidden Layout again."
+            }
             if self.shouldApplyLayoutAgain {
                 self.shouldApplyLayoutAgain = false
-                self.scheduleLayoutRetry()
+                self.scheduleLayoutRetry(after: 0.2)
             }
         }
     }
 
-    private func scheduleLayoutRetry() {
+    private func scheduleLayoutRetry(after delay: TimeInterval) {
         layoutWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in self?.applyLayout() }
         layoutWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     func restoreLayout(completion: @escaping () -> Void = {}) {
@@ -328,7 +344,7 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.restoreProtectedSystemItems { _ in completion() }
     }
 
-    func activate(_ item: MenuBarItem) {
+    func activate(_ item: MenuBarItem, retryCount: Int = 0) {
         guard activatingItemID == nil else { return }
         cancelPendingRehide()
         activatingItemID = item.id
@@ -352,7 +368,7 @@ final class MenuBarItemStore: ObservableObject {
         // Preserve the real pointer across the complete reveal → click →
         // rehide transaction. Each synthetic event can otherwise overwrite
         // WindowServer's logical location before the next phase starts.
-        activateByTemporarilyRevealing(item, restoreCursorLocation: layoutManager.currentPointerLocation())
+        activateByTemporarilyRevealing(item, restoreCursorLocation: layoutManager.currentPointerLocation(), retryCount: retryCount)
     }
 
     private func activateUsingFreshAccessibility(_ item: MenuBarItem) -> Bool {
@@ -362,12 +378,11 @@ final class MenuBarItemStore: ObservableObject {
         return activator.activateDirectly(item)
     }
 
-    private func activateByTemporarilyRevealing(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
+    private func activateByTemporarilyRevealing(_ item: MenuBarItem, restoreCursorLocation: CGPoint?, retryCount: Int) {
         layoutManager.reveal(item, restoreCursorLocation: restoreCursorLocation) { [weak self] moved in
             guard let self else { return }
             guard moved else {
-                self.lastActivationError = "Unable to temporarily show \(item.tooltip)."
-                self.finishActivation()
+                self.retryActivation(item, retryCount: retryCount, message: "Unable to temporarily show \(item.tooltip).")
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
@@ -387,14 +402,28 @@ final class MenuBarItemStore: ObservableObject {
                     self.layoutManager.restorePointerLocation(restoreCursorLocation)
                     guard success else {
                         self.layoutManager.rehide(item, restoreCursorLocation: restoreCursorLocation)
-                        self.lastActivationError = "Unable to activate \(item.tooltip)."
-                        self.finishActivation()
+                        self.retryActivation(item, retryCount: retryCount, message: "Unable to activate \(item.tooltip).")
                         return
                     }
                     self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
                     self.finishActivation()
                 }
             }
+        }
+    }
+
+    private func retryActivation(_ item: MenuBarItem, retryCount: Int, message: String) {
+        guard retryCount < 1 else {
+            lastActivationError = message
+            finishActivation()
+            return
+        }
+        finishActivation()
+        // Control Center can replace a status-item window between the scan
+        // and the click. A single fresh pass handles that race without
+        // returning to the old multi-second activation transaction.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            self?.activate(item, retryCount: retryCount + 1)
         }
     }
 
