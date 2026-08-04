@@ -16,17 +16,29 @@ final class MenuBarScanner {
             for child in children {
                 guard let frame = frame(of: child), frame.width > 5, frame.height > 5,
                       isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
-                let rawTitle = stringAttribute(child, kAXTitleAttribute as CFString) ?? stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
+                let axTitle = stringAttribute(child, kAXTitleAttribute as CFString)
+                let axDescription = stringAttribute(child, kAXDescriptionAttribute as CFString)
+                // Control Center keeps the useful Screen Recording state in
+                // AXDescription while AXTitle is only "Control Center".
+                // Prefer that description when it carries a specific system
+                // control name, otherwise retain the normal title-first path.
+                let rawTitle = axDescription?.localizedCaseInsensitiveContains("screen recording") == true
+                    ? axDescription!
+                    : (axTitle ?? axDescription ?? "Menu Bar Item")
                 let ownerName = app.localizedName ?? bundleID
                 let isProtected = MenuBarSystemItemClassifier.isProtected(rawTitle, owner: ownerName)
                 let title = isProtected ? MenuBarSystemItemClassifier.canonicalName(rawTitle, owner: ownerName) : rawTitle
-                let matchingIndex = app.activationPolicy == .regular
-                    ? nil
-                    : results.firstIndex(where: { framesMatch($0.frame, frame) })
+                // A regular application can still own a menu-bar status item.
+                // Match every right-side AX element to the WindowServer record
+                // by frame so the layout manager receives its window ID and
+                // can hide it. The frame filter above excludes ordinary
+                // application-menu entries on the left side.
+                let matchingIndex = results.firstIndex(where: { framesMatch($0.frame, frame) })
                 // A regular application's AX menu bar also contains File/Edit
                 // style menus. Only admit an unmatched element from a
-                // background/accessory app; regular apps may still enrich a
-                // matching WindowServer status item with AXPress support.
+                // background/accessory app. Unmatched regular-app elements
+                // are still ignored so ordinary menu entries cannot become
+                // status items.
                 guard matchingIndex != nil || app.activationPolicy != .regular else { continue }
                 if title.isEmpty || excludedTitles.contains(title) || (!isProtected && looksLikeTextMenu(rawTitle, frame: frame)) {
                     if let matchingIndex, !results[matchingIndex].isProtectedSystemItem { results.remove(at: matchingIndex) }

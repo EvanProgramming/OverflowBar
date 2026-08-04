@@ -11,22 +11,15 @@ enum MenuBarSystemItemClassifier {
 
     static func isProtected(_ title: String, owner: String? = nil) -> Bool {
         let normalized = normalize(title)
-        if normalized.contains("clock") ||
+        return normalized.contains("clock") ||
             normalized.contains("battery") ||
             normalized.contains("siri") ||
             normalized.contains("wifi") ||
             normalized.contains("bluetooth") ||
+            normalized.contains("screenrecording") ||
             normalized.contains("bentobox") ||
             normalized.contains("audiovideomodule") ||
-            normalized.contains("audioandvideocontrols") ||
-            normalized.contains("controlcenter") {
-            return true
-        }
-
-        // macOS 26 gives several Control Center-owned status items only a
-        // generic WindowServer/AX title (for example "Item-0" or
-        // "status menu"). Their owner is the reliable system boundary.
-        return isGenericControlCenterItem(title, owner: owner)
+            normalized.contains("audioandvideocontrols")
     }
 
     static func canonicalName(_ title: String, owner: String? = nil) -> String {
@@ -35,12 +28,16 @@ enum MenuBarSystemItemClassifier {
         if normalized.contains("bluetooth") { return "Bluetooth" }
         if normalized.contains("battery") { return "Battery" }
         if normalized.contains("siri") { return "Siri" }
+        if normalized.contains("screenrecording") { return "Screen Recording" }
         if normalized.contains("clock") { return "Clock" }
         if normalized.contains("controlcenter") { return "Control Center" }
         if normalized.contains("audioandvideocontrols") || normalized.contains("audiovideomodule") {
             return "Audio and Video Controls"
         }
-        if normalized.contains("bentobox") { return "Control Center" }
+        // While capture is active, Control Center exposes the privacy/media
+        // indicators as BentoBox/AudioVideoModule windows. They are OS-owned
+        // security indicators rather than draggable status items.
+        if normalized.contains("bentobox") { return "Screen Recording" }
         if isProtected(title, owner: owner) && normalize(owner ?? "").contains("controlcenter") {
             return "Control Center Item"
         }
@@ -89,6 +86,10 @@ final class MenuBarItem: Identifiable {
     }
 
     var tooltip: String { title.isEmpty ? ownerName : "\(ownerName) — \(title)" }
+    var isAlwaysVisibleSystemItem: Bool {
+        guard isProtectedSystemItem else { return false }
+        return title == "Screen Recording" || title == "Audio and Video Controls"
+    }
     var displayImage: NSImage? { iconImage ?? applicationIcon }
     var hasUsableDisplayIcon: Bool {
         displayImage != nil || NSImage(systemSymbolName: fallbackSymbolName, accessibilityDescription: nil) != nil
@@ -99,6 +100,7 @@ final class MenuBarItem: Identifiable {
         if value.contains("audio") || value.contains("sound") { return "speaker.wave.2.fill" }
         if value.contains("battery") { return "battery.75percent" }
         if value.contains("wifi") { return "wifi" }
+        if value.contains("screen recording") || value.contains("screenrecording") { return "record.circle" }
         if value.contains("vpn") { return "lock.shield.fill" }
         if value.contains("clock") { return "clock.fill" }
         if value.contains("amphetamine") { return "bolt.fill" }

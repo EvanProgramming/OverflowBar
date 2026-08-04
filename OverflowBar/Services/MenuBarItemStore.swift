@@ -25,6 +25,7 @@ final class MenuBarItemStore: ObservableObject {
     private var pendingRehideItem: MenuBarItem?
     private var pendingRehidePointer: CGPoint?
     private var layoutWorkItem: DispatchWorkItem?
+    private var automaticLayoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
     private var monitorTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -48,6 +49,7 @@ final class MenuBarItemStore: ObservableObject {
         monitorTimer?.invalidate()
         refreshWorkItem?.cancel()
         layoutWorkItem?.cancel()
+        automaticLayoutWorkItem?.cancel()
         if let menuEndObserver { NotificationCenter.default.removeObserver(menuEndObserver) }
         if let menuDismissMonitor { NSEvent.removeMonitor(menuDismissMonitor) }
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
@@ -56,7 +58,9 @@ final class MenuBarItemStore: ObservableObject {
     /// Items the user selected to move out of the original menu bar. System
     /// controls are recognized separately for safety, but their visibility is
     /// still user-configurable in Settings.
-    var selectedItems: [MenuBarItem] { items.filter(\.isSelected) }
+    var selectedItems: [MenuBarItem] {
+        items.filter { $0.isSelected && !$0.isAlwaysVisibleSystemItem }
+    }
 
     /// Items currently in OverflowBar's off-screen staging area but absent
     /// from the persisted selection set. This recovers protected macOS
@@ -139,6 +143,9 @@ final class MenuBarItemStore: ObservableObject {
             if item.isProtectedSystemItem && deselectedBefore.contains(item.id) {
                 item.isSelected = false
             }
+            if item.isAlwaysVisibleSystemItem {
+                item.isSelected = false
+            }
         }
 
         if !preferences.didApplyDefaultLayout, !scanned.isEmpty {
@@ -163,6 +170,20 @@ final class MenuBarItemStore: ObservableObject {
             }
         }
 
+        // Once managed layout is enabled, every newly discovered item is
+        // selected unless the user explicitly deselected its persisted ID.
+        // WindowServer can replace a status-item window while keeping the
+        // same icon; in that case occurrence-based IDs are not stable enough
+        // to decide whether the replacement should be hidden. Preserving an
+        // explicit deselection while defaulting new items to selected keeps
+        // ordinary third-party icons out of the menu bar after a refresh.
+        if layoutManagementEnabled {
+            for item in scanned where !item.isProtectedSystemItem && !deselectedBefore.contains(item.id) {
+                let previous = previousByID[item.id] ?? item.windowID.flatMap { previousByWindowID[$0] }
+                if previous == nil { item.isSelected = true }
+            }
+        }
+
         items = scanned
         preferences.saveKnownItems(knownBefore.union(currentIDs))
         preferences.saveKnownWindowIDs(knownWindowIDsBefore.union(currentWindowIDs))
@@ -173,20 +194,18 @@ final class MenuBarItemStore: ObservableObject {
         onLayoutStateChanged?()
         isReadyForManagedLayout = selectedItems.allSatisfy(\.hasUsableDisplayIcon)
         onImagesReady?()
-        // Newly discovered items are selected and shown in the panel, but we
-        // intentionally do not auto-run synthetic Command-drag layout here.
-        // The user can apply the layout explicitly after confirming the list.
+        // Reconcile selected items that are still visible after a WindowServer
+        // refresh. This is delayed until capture completes and guarded by the
+        // same real-button check as explicit layout actions, so new status
+        // items do not remain beside OverflowBar while avoiding a drag during
+        // an active user click.
 
         let captureCandidates = preferences.hasCompletedOnboarding ? overflowItems : items
         refreshImages(for: captureCandidates) { [weak self] in
             guard let self else { return }
             self.onLayoutStateChanged?()
             self.onImagesReady?()
-            // Discovery and image capture must remain observational. Applying
-            // the hidden layout injects a synthetic Command-drag sequence
-            // into WindowServer; doing that from a refresh can corrupt the
-            // global pointer state before the user has interacted with the
-            // app. Layout changes are initiated explicitly by the user.
+            self.scheduleAutomaticLayoutIfNeeded()
             if self.refreshAgain {
                 self.refreshAgain = false
                 self.scheduleRefresh(after: 0.2, reason: "coalesced refresh")
@@ -216,6 +235,7 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func setSelected(_ item: MenuBarItem, selected: Bool) {
+        guard !item.isAlwaysVisibleSystemItem else { return }
         item.isSelected = selected
         objectWillChange.send()
         var deselected = preferences.deselectedItemIDs
@@ -230,7 +250,7 @@ final class MenuBarItemStore: ObservableObject {
 
     func selectAll(_ selected: Bool) {
         let previouslySelected = items.filter(\.isSelected)
-        for item in items { item.isSelected = selected }
+        for item in items { item.isSelected = selected && !item.isAlwaysVisibleSystemItem }
         if selected {
             preferences.saveDeselectedItems([])
         } else {
@@ -283,8 +303,25 @@ final class MenuBarItemStore: ObservableObject {
         if enabled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in self?.applyLayout() }
         } else {
+            automaticLayoutWorkItem?.cancel()
             restoreLayout()
         }
+    }
+
+    private func scheduleAutomaticLayoutIfNeeded() {
+        guard preferences.hasCompletedOnboarding,
+              layoutManagementEnabled,
+              !selectedItems.isEmpty,
+              isReadyForManagedLayout,
+              selectedItems.contains(where: layoutManager.isVisible) else { return }
+        automaticLayoutWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.automaticLayoutWorkItem = nil
+            self.applyLayout()
+        }
+        automaticLayoutWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
     }
 
     func applyLayout() {

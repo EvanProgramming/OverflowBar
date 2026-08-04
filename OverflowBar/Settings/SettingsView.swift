@@ -61,7 +61,11 @@ struct SettingsView: View {
                                 Text(item.title).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if item.isProtectedSystemItem {
+                            if item.isAlwaysVisibleSystemItem {
+                                Text("System · always visible")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if item.isProtectedSystemItem {
                                 Text("System · configurable")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -70,6 +74,7 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    .disabled(item.isAlwaysVisibleSystemItem)
                 }
                 if permissions.accessibilityGranted && store.items.isEmpty { Text("No accessible right-side menu bar items were found. Some apps do not expose status items to Accessibility.").foregroundStyle(.secondary) }
             }

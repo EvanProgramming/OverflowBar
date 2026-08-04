@@ -47,7 +47,8 @@ final class MenuBarLayoutManager {
         logger.info("Hiding \(items.count, privacy: .public) items relative to window \(target.id, privacy: .public)")
         let managed = items.filter {
             $0.windowID != target.id
-        }.filter(needsHiding)
+        }.filter { !$0.isAlwaysVisibleSystemItem }
+         .filter(needsHiding)
         publishCurrentFrames(for: managed)
         hideSequentially(managed, index: 0, movedCount: 0) { [weak self] movedCount in
             self?.publishCurrentFrames(for: managed)
@@ -71,6 +72,10 @@ final class MenuBarLayoutManager {
     /// Returns true only while a managed item is still occupying the visible
     /// menu bar, so repair passes focus on actual duplicate icons.
     func needsHiding(_ item: MenuBarItem) -> Bool {
+        // macOS keeps active privacy/media indicators visible. These
+        // Control Center windows are not draggable status items, so do not
+        // report a failed layout repair when the system leaves them in place.
+        if item.isAlwaysVisibleSystemItem { return false }
         guard item.windowID != nil else { return false }
         return isVisible(item)
     }
