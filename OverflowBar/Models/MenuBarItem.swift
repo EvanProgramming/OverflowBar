@@ -91,6 +91,19 @@ final class MenuBarItem: Identifiable {
         return title == "Screen Recording" || title == "Audio and Video Controls"
     }
     var displayImage: NSImage? { iconImage ?? applicationIcon }
+    /// The activation path used by the item. WindowServer-backed items do not
+    /// expose an Accessibility press action, but they can still be activated
+    /// directly without moving the user's cursor or waiting for AX traversal.
+    var activationStatusSymbolName: String {
+        if supportsPressAction { return "hand.tap" }
+        if windowID != nil { return "bolt.fill" }
+        return "exclamationmark.triangle"
+    }
+    var activationStatusHelp: String {
+        if supportsPressAction { return "Supports Accessibility press" }
+        if windowID != nil { return "Uses fast WindowServer activation" }
+        return "Accessibility activation unavailable"
+    }
     var hasUsableDisplayIcon: Bool {
         displayImage != nil || NSImage(systemSymbolName: fallbackSymbolName, accessibilityDescription: nil) != nil
     }

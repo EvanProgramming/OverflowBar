@@ -70,7 +70,8 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             } else {
-                                Image(systemName: item.supportsPressAction ? "hand.tap" : "exclamationmark.triangle").help(item.supportsPressAction ? "Supports Accessibility press" : "Accessibility activation unavailable")
+                                Image(systemName: item.activationStatusSymbolName)
+                                    .help(item.activationStatusHelp)
                             }
                         }
                     }
