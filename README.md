@@ -59,6 +59,10 @@ The current community build is ad-hoc signed and not yet Apple-notarized. On fir
 | [Privacy](PRIVACY.md) | Local capture and permission behavior |
 | [Security](SECURITY.md) | Supported versions and responsible disclosure |
 
+## License
+
+OverflowBar is available under the MIT License. See [LICENSE](LICENSE).
+
 ## How it works
 
 OverflowBar combines public macOS Accessibility APIs, WindowServer metadata, ScreenCaptureKit, SwiftUI, and AppKit:
