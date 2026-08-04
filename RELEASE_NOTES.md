@@ -17,9 +17,22 @@ OverflowBar 1.0.16 is a stable patch release that clarifies menu-bar activation 
 
 ## Install
 
+### Recommended: DMG
+
 1. Download `OverflowBar-1.0.16.dmg`.
 2. Open the disk image and drag OverflowBar to Applications.
 3. Replace an older copy when prompted.
+
+### Alternative: Homebrew
+
+```bash
+brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
+brew install --cask EvanProgramming/overflowbar/overflowbar
+```
+
+Homebrew installs the same Apple Silicon DMG. The current community build is
+ad-hoc signed, so macOS may require a one-time Control-click → **Open**
+confirmation. Accessibility and Screen Recording permissions are still required.
 
 ## Compatibility
 

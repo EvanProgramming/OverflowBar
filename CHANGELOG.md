@@ -4,7 +4,7 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
-- Added a third-party Homebrew Cask installation path backed by versioned GitHub Release artifacts and checksum validation.
+- Added an alternative third-party Homebrew Cask installation path backed by versioned GitHub Release artifacts and checksum validation; the DMG remains the recommended installation method.
 
 ## [1.0.16] - 2026-08-04
 

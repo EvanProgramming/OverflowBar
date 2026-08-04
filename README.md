@@ -15,7 +15,7 @@
 
 OverflowBar keeps a crowded Mac menu bar tidy by moving selected status items behind one persistent arrow, then revealing them in a fast, native second row whenever you need them.
 
-**[Install with Homebrew](docs/HOMEBREW.md)** · [Download the latest DMG](https://github.com/EvanProgramming/OverflowBar/releases/latest) · [Installation](docs/INSTALLATION.md) · [User guide](docs/USAGE.md) · [Roadmap](docs/ROADMAP.md)
+**[Download the latest DMG (Recommended)](https://github.com/EvanProgramming/OverflowBar/releases/latest)** · [Install with Homebrew (Alternative)](docs/HOMEBREW.md) · [Installation](docs/INSTALLATION.md) · [User guide](docs/USAGE.md) · [Roadmap](docs/ROADMAP.md)
 
 ## A focused alternative
 
@@ -35,7 +35,7 @@ OverflowBar is deliberately small in scope. Feature-heavy menu-bar managers such
 - **System controls stay safe** — Wi-Fi, Battery, Siri, Control Center, and Clock remain visible and are restored if a previous layout left them offscreen.
 - **Built for real displays** — respects safe areas, notches, multiple displays, full-screen spaces, and reduced-motion settings.
 
-## Quick start
+## Recommended installation
 
 1. Download `OverflowBar-*.dmg` from the [latest release](https://github.com/EvanProgramming/OverflowBar/releases/latest).
 2. Drag **OverflowBar** into **Applications**.
@@ -44,6 +44,11 @@ OverflowBar is deliberately small in scope. Feature-heavy menu-bar managers such
 5. Enable **Hide selected original icons**, then click the arrow to reveal the second row.
 
 The current community build is ad-hoc signed and not yet Apple-notarized. On first launch, macOS may require **Control-click → Open**. See the [installation guide](docs/INSTALLATION.md#first-launch-and-gatekeeper) for details.
+
+Homebrew is available as an alternative package-manager installation. The DMG
+remains the recommended path because it gives the clearest first-launch flow
+and includes the checksum beside the download. See [Install with Homebrew](docs/HOMEBREW.md)
+if you prefer to manage OverflowBar with Homebrew.
 
 ## Documentation
 

@@ -1,7 +1,11 @@
-# Homebrew installation
+# Alternative Homebrew installation
 
-OverflowBar is distributed through a third-party Homebrew Cask. The Cask uses
-the versioned DMG and SHA-256 checksum published by the matching GitHub Release.
+The DMG is the recommended installation path for most users. Homebrew is an
+alternative for users who prefer package-manager workflows. The third-party
+Homebrew Cask uses the versioned DMG and SHA-256 checksum published by the
+matching GitHub Release.
+
+See the [main installation guide](INSTALLATION.md) for the recommended DMG flow.
 
 ## Install from the current repository
 

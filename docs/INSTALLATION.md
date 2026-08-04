@@ -3,24 +3,10 @@
 ## Requirements
 
 - macOS 15 Sequoia or later
-- Apple Silicon for the downloadable DMG
+- Apple Silicon for the downloadable DMG and Homebrew Cask
 - Accessibility and Screen Recording permissions for the full feature set
 
-## Install with Homebrew
-
-OverflowBar is available as a Cask in the project's third-party tap:
-
-```bash
-brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
-brew install --cask EvanProgramming/overflowbar/overflowbar
-```
-
-This installs the same Apple Silicon DMG published through GitHub Releases. The
-current community build is ad-hoc signed, so macOS may require a one-time
-Control-click → **Open** confirmation. Homebrew cannot grant Accessibility or
-Screen Recording permissions; complete those steps in OverflowBar's onboarding.
-
-## Install the DMG
+## Recommended: Install the DMG
 
 1. Open the [latest GitHub Release](https://github.com/EvanProgramming/OverflowBar/releases/latest).
 2. Download `OverflowBar-<version>.dmg`.
@@ -32,6 +18,23 @@ Screen Recording permissions; complete those steps in OverflowBar's onboarding.
 
 4. Open the DMG and drag **OverflowBar** into **Applications**.
 5. Launch OverflowBar from Applications.
+
+The DMG is the recommended installation path. It provides the clearest manual
+installation flow and includes a matching SHA-256 checksum beside the download.
+
+## Alternative: Install with Homebrew
+
+OverflowBar is also available as a Cask in the project's third-party tap:
+
+```bash
+brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
+brew install --cask EvanProgramming/overflowbar/overflowbar
+```
+
+This installs the same Apple Silicon DMG published through GitHub Releases. The
+current community build is ad-hoc signed, so macOS may require a one-time
+Control-click → **Open** confirmation. Homebrew cannot grant Accessibility or
+Screen Recording permissions; complete those steps in OverflowBar's onboarding.
 
 ## First launch and Gatekeeper
 

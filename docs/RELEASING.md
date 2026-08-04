@@ -1,6 +1,8 @@
 # Release process
 
 OverflowBar uses semantic version tags and publishes installable DMGs through GitHub Releases.
+The DMG is the primary distribution path; the third-party Homebrew Cask mirrors
+the same versioned DMG and checksum as an alternative installation method.
 
 ## Cadence
 
