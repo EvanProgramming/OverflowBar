@@ -28,7 +28,7 @@ struct SettingsView: View {
             }
             Section("Menu Bar Layout") {
                 Toggle("Hide selected original icons", isOn: Binding(get: { store.layoutManagementEnabled }, set: { store.setLayoutManagementEnabled($0) }))
-                Text("OverflowBar keeps the original menu-bar order while the hidden layout is applied. Items are moved only after you enable this setting; opening an item uses the fast Accessibility path when available.")
+                Text("OverflowBar keeps the original menu-bar order while the hidden layout is applied. Items are moved only after you enable this setting; visible status windows use a direct, low-latency click path.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {

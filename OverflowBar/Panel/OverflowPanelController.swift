@@ -55,11 +55,6 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         closeWorkItem?.cancel()
         closeWorkItem = nil
         anchorButton = button
-        store.refreshIfWindowSetChanged(immediate: true)
-        // Images are retained across panel opens. Capturing every status-item
-        // window here is expensive and causes unnecessary ScreenCaptureKit /
-        // WindowServer work; refresh only items that still lack an image.
-        store.refreshImages(for: store.overflowItems.filter { $0.displayImage == nil })
         guard positionPanel(relativeTo: button) else { return }
         presentation.isPresented = false
         panel.orderFrontRegardless()
@@ -69,6 +64,14 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
             withAnimation(self.reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.3, dampingFraction: 0.82)) {
                 self.presentation.isPresented = true
             }
+        }
+        // Discovery and icon capture may involve WindowServer or
+        // ScreenCaptureKit. Keep them behind the first visible frame so hover
+        // animation is never held up by a refresh.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.store.refreshIfWindowSetChanged(immediate: false)
+            self.store.refreshImages(for: self.store.overflowItems.filter { $0.displayImage == nil })
         }
         if let globalEventMonitor { NSEvent.removeMonitor(globalEventMonitor) }
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in

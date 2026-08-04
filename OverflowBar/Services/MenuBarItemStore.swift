@@ -27,6 +27,7 @@ final class MenuBarItemStore: ObservableObject {
     private var layoutWorkItem: DispatchWorkItem?
     private var automaticLayoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
+    private var captureTask: Task<Void, Never>?
     private var monitorTimer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
     private var lastWindowSignature = Set<String>()
@@ -50,6 +51,7 @@ final class MenuBarItemStore: ObservableObject {
         refreshWorkItem?.cancel()
         layoutWorkItem?.cancel()
         automaticLayoutWorkItem?.cancel()
+        captureTask?.cancel()
         if let menuEndObserver { NotificationCenter.default.removeObserver(menuEndObserver) }
         if let menuDismissMonitor { NSEvent.removeMonitor(menuDismissMonitor) }
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
@@ -270,14 +272,21 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func refreshImages(for target: [MenuBarItem]? = nil, completion: (() -> Void)? = nil) {
+        // A panel open can arrive while the startup refresh is still
+        // capturing. Do not launch a second ScreenCaptureKit enumeration;
+        // overlapping captures were a major source of memory spikes and
+        // apparent hangs.
+        guard !isCapturing else { return }
         captureGeneration += 1
         let generation = captureGeneration
         let candidates = target ?? overflowItems
         isCapturing = true
-        Task { [weak self] in
+        captureTask?.cancel()
+        captureTask = Task { [weak self] in
             guard let self else { return }
             let images = await self.captureService.capture(candidates)
             guard generation == self.captureGeneration else { return }
+            self.captureTask = nil
             self.isCapturing = false
             for (id, image) in images {
                 self.items.first(where: { $0.id == id })?.iconImage = image
@@ -389,6 +398,9 @@ final class MenuBarItemStore: ObservableObject {
 
     func prepareForTermination(completion: @escaping () -> Void) {
         captureGeneration += 1
+        captureTask?.cancel()
+        captureTask = nil
+        isCapturing = false
         restoreLayout(completion: completion)
     }
 
@@ -405,6 +417,23 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
+        // WindowServer-backed items can be clicked directly without a global
+        // Accessibility hit-test. This avoids an unbounded AX IPC call and
+        // removes the extra round trip from the common visible-item path.
+        if mouseButton == .left,
+           item.windowID != nil,
+           layoutManager.isVisible(item) {
+            activator.activateMovedItem(item, mouseButton: .left) { [weak self] success in
+                guard let self else { return }
+                guard success else {
+                    self.retryActivation(item, mouseButton: .left, retryCount: retryCount, message: "Unable to activate \(item.tooltip).")
+                    return
+                }
+                self.rehideAfterNextUserClick(item, restoreCursorLocation: nil)
+                self.finishActivation()
+            }
+            return
+        }
         // An AX element can go stale after a status-item rebuild. Refresh it
         // only when we already had an AX-backed item; window-backed items skip
         // this expensive full-tree walk and use the direct per-process path
@@ -413,7 +442,9 @@ final class MenuBarItemStore: ObservableObject {
             finishActivation()
             return
         }
-        if mouseButton == .left, activator.activateViaAccessibilityHitTest(item) {
+        if mouseButton == .left,
+           item.windowID == nil,
+           activator.activateViaAccessibilityHitTest(item) {
             finishActivation()
             return
         }
@@ -457,6 +488,7 @@ final class MenuBarItemStore: ObservableObject {
                 // reference captured during scanning. This is both faster
                 // and safer than injecting a mouse event into Control Center.
                 if mouseButton == .left,
+                   self.itemUsesAccessibility(item),
                    self.activator.activateDirectly(item)
                     || self.activator.activateViaAccessibilityHitTest(item) {
                     self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
@@ -494,6 +526,10 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     private func finishActivation() { activatingItemID = nil }
+
+    private func itemUsesAccessibility(_ item: MenuBarItem) -> Bool {
+        item.windowID == nil
+    }
 
     private func rehideAfterNextUserClick(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
         pendingRehideItem = item
