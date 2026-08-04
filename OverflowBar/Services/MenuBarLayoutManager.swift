@@ -23,12 +23,14 @@ final class MenuBarLayoutManager {
 
     func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int = 0, completion: @escaping (Int) -> Void = { _ in }) {
         guard isEnabled else { completion(0); return }
-        restoreProtectedSystemItems { [weak self] _ in
-            self?.hideAfterRestoringProtectedItems(items, relativeTo: controlFrame, targetAttempt: targetAttempt, completion: completion)
+        let managedWindowIDs = Set(items.compactMap(\.windowID))
+        let managedSystemNames = protectedNames(for: items)
+        restoreProtectedSystemItems(excluding: managedWindowIDs, excludingSystemNames: managedSystemNames) { [weak self] _ in
+            self?.hideAfterRestoringProtectedItems(items, relativeTo: controlFrame, targetAttempt: targetAttempt, managedSystemNames: managedSystemNames, completion: completion)
         }
     }
 
-    private func hideAfterRestoringProtectedItems(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int, completion: @escaping (Int) -> Void) {
+    private func hideAfterRestoringProtectedItems(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int, managedSystemNames: Set<String>, completion: @escaping (Int) -> Void) {
         guard isEnabled else { completion(0); return }
         guard let target = hiddenTargetWindow() else {
             guard targetAttempt < 10 else {
@@ -38,19 +40,19 @@ final class MenuBarLayoutManager {
             }
             logger.info("Control window pending; retrying attempt \(targetAttempt + 1, privacy: .public)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                self?.hideAfterRestoringProtectedItems(items, relativeTo: controlFrame, targetAttempt: targetAttempt + 1, completion: completion)
+                self?.hideAfterRestoringProtectedItems(items, relativeTo: controlFrame, targetAttempt: targetAttempt + 1, managedSystemNames: managedSystemNames, completion: completion)
             }
             return
         }
         logger.info("Hiding \(items.count, privacy: .public) items relative to window \(target.id, privacy: .public)")
-        let protectedWindowIDs = Set(windowRecords().filter { MenuBarSystemItemClassifier.isProtected($0.title, owner: $0.owner) }.map(\.id))
         let managed = items.filter {
-            !$0.isProtectedSystemItem && $0.windowID != target.id && $0.windowID.map(protectedWindowIDs.contains) != true
+            $0.windowID != target.id
         }.filter(needsHiding)
         publishCurrentFrames(for: managed)
         hideSequentially(managed, index: 0, movedCount: 0) { [weak self] movedCount in
             self?.publishCurrentFrames(for: managed)
-            self?.restoreProtectedSystemItems { _ in completion(movedCount) }
+            let managedWindowIDs = Set(managed.compactMap(\.windowID))
+            self?.restoreProtectedSystemItems(excluding: managedWindowIDs, excludingSystemNames: managedSystemNames) { _ in completion(movedCount) }
         }
     }
 
@@ -122,7 +124,7 @@ final class MenuBarLayoutManager {
         move(item, relativeTo: target.id, placement: .left) { _ in }
     }
 
-    func restoreProtectedSystemItems(attempt: Int = 0, completion: @escaping (Int) -> Void = { _ in }) {
+    func restoreProtectedSystemItems(attempt: Int = 0, excluding excludedWindowIDs: Set<CGWindowID> = [], excludingSystemNames: Set<String> = [], completion: @escaping (Int) -> Void = { _ in }) {
         guard let target = controlTargetWindow() else {
             guard attempt < 10 else {
                 logger.error("Control target unavailable while restoring protected items")
@@ -130,14 +132,30 @@ final class MenuBarLayoutManager {
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.restoreProtectedSystemItems(attempt: attempt + 1, completion: completion)
+                self?.restoreProtectedSystemItems(attempt: attempt + 1, excluding: excludedWindowIDs, excludingSystemNames: excludingSystemNames, completion: completion)
             }
             return
         }
         let hidden = windowRecords().filter {
-            MenuBarSystemItemClassifier.isProtected($0.title, owner: $0.owner) && $0.frame.maxX <= 0
+            MenuBarSystemItemClassifier.isProtected($0.title, owner: $0.owner) &&
+                $0.frame.maxX <= 0 &&
+                !excludedWindowIDs.contains($0.id) &&
+                !excludingSystemNames.contains($0.title) &&
+                !excludingSystemNames.contains(MenuBarSystemItemClassifier.canonicalName($0.title, owner: $0.owner)) &&
+                !(MenuBarSystemItemClassifier.isGenericControlCenterItem($0.title, owner: $0.owner) && excludingSystemNames.contains("Control Center Item"))
         }
         restoreProtectedSequentially(hidden, index: 0, target: target, movedCount: 0, completion: completion)
+    }
+
+    private func protectedNames(for items: [MenuBarItem]) -> Set<String> {
+        var names = Set<String>()
+        for item in items where item.isProtectedSystemItem {
+            names.insert(item.title)
+            if item.title == "Control Center Item" {
+                names.insert("Control Center Item")
+            }
+        }
+        return names
     }
 
     private func hideSequentially(_ items: [MenuBarItem], index: Int, movedCount: Int, completion: @escaping (Int) -> Void) {

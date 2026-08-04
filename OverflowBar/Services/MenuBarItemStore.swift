@@ -53,7 +53,10 @@ final class MenuBarItemStore: ObservableObject {
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     }
 
-    var selectedItems: [MenuBarItem] { items.filter { $0.isSelected && !$0.isProtectedSystemItem } }
+    /// Items the user selected to move out of the original menu bar. System
+    /// controls are recognized separately for safety, but their visibility is
+    /// still user-configurable in Settings.
+    var selectedItems: [MenuBarItem] { items.filter(\.isSelected) }
 
     /// Items currently in OverflowBar's off-screen staging area but absent
     /// from the persisted selection set. This recovers protected macOS
@@ -118,23 +121,36 @@ final class MenuBarItemStore: ObservableObject {
         let deselectedBefore = preferences.deselectedItemIDs
         let selectedBefore = preferences.selectedIDs
         let scanned = scanner.scan(selectedIDs: selectedBefore)
-        let currentIDs = Set(scanned.filter { !$0.isProtectedSystemItem }.map(\.id))
+        let currentIDs = Set(scanned.map(\.id))
+        let selectableCurrentIDs = Set(scanned.filter { !$0.isProtectedSystemItem }.map(\.id))
         let currentWindowIDs = Set(scanned.compactMap(\.windowID))
         let newWindowIDs = currentWindowIDs.subtracting(knownWindowIDsBefore)
 
         for item in scanned {
             let previous = previousByID[item.id] ?? item.windowID.flatMap { previousByWindowID[$0] }
             item.iconImage = previous?.iconImage
-            if let previous { item.isSelected = previous.isSelected }
+            // System-item selection is derived from the current WindowServer
+            // frame (or an explicit persisted selection), not from a stale
+            // pre-1.0.15 object that may have treated every system item as
+            // permanently unselected.
+            if let previous, !item.isProtectedSystemItem { item.isSelected = previous.isSelected }
+            // An explicit user deselection wins over the frame-based stale
+            // hidden-state recovery used for system controls.
+            if item.isProtectedSystemItem && deselectedBefore.contains(item.id) {
+                item.isSelected = false
+            }
         }
 
         if !preferences.didApplyDefaultLayout, !scanned.isEmpty {
-            scanned.forEach { $0.isSelected = !$0.isProtectedSystemItem }
+            // Keep the scanner's off-screen state for system controls so a
+            // previous build's hidden icons can be restored from Settings;
+            // visible system controls remain unselected by default.
+            scanned.forEach { if !$0.isProtectedSystemItem { $0.isSelected = true } }
             preferences.didApplyDefaultLayout = true
             layoutManager.isEnabled = false
             layoutManagementEnabled = false
         } else if !knownBefore.isEmpty, layoutManagementEnabled {
-            let newIDs = currentIDs.subtracting(knownBefore)
+            let newIDs = selectableCurrentIDs.subtracting(knownBefore)
             let newWindowItems = scanned.filter { item in
                 !item.isProtectedSystemItem && item.windowID.map(newWindowIDs.contains) == true &&
                     !deselectedBefore.contains(item.id)
@@ -200,7 +216,6 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func setSelected(_ item: MenuBarItem, selected: Bool) {
-        guard !item.isProtectedSystemItem else { return }
         item.isSelected = selected
         objectWillChange.send()
         var deselected = preferences.deselectedItemIDs
@@ -214,15 +229,23 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func selectAll(_ selected: Bool) {
-        for item in items where !item.isProtectedSystemItem { item.isSelected = selected }
+        let previouslySelected = items.filter(\.isSelected)
+        for item in items { item.isSelected = selected }
         if selected {
             preferences.saveDeselectedItems([])
         } else {
-            preferences.saveDeselectedItems(Set(items.filter { !$0.isProtectedSystemItem }.map(\.id)))
+            preferences.saveDeselectedItems(Set(items.map(\.id)))
         }
         preferences.saveSelected(Set(items.filter(\.isSelected).map(\.id)))
         objectWillChange.send()
-        if selected { applyLayout() } else { restoreLayout() }
+        if selected {
+            applyLayout()
+        } else if let controlItemFrame {
+            layoutOperationMessage = "Restoring menu bar items…"
+            layoutManager.restore(previouslySelected, relativeTo: controlItemFrame) { [weak self] count in
+                self?.layoutOperationMessage = count > 0 ? "Restored \(count) menu bar items." : "Menu bar items are already visible."
+            }
+        }
         onLayoutStateChanged?()
     }
 

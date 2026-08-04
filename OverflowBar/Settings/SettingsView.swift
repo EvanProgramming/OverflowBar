@@ -53,7 +53,7 @@ struct SettingsView: View {
                 }
                 if !permissions.accessibilityGranted { Text("Enable Accessibility to scan and activate menu bar items.").foregroundStyle(.secondary) }
                 ForEach(store.items) { item in
-                    if item.isProtectedSystemItem {
+                    Toggle(isOn: Binding(get: { item.isSelected }, set: { store.setSelected(item, selected: $0) })) {
                         HStack {
                             icon(for: item)
                             VStack(alignment: .leading) {
@@ -61,19 +61,11 @@ struct SettingsView: View {
                                 Text(item.title).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Label("Always Visible", systemImage: "lock.fill")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Toggle(isOn: Binding(get: { item.isSelected }, set: { store.setSelected(item, selected: $0) })) {
-                            HStack {
-                                icon(for: item)
-                                VStack(alignment: .leading) {
-                                    Text(item.ownerName)
-                                    Text(item.title).font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
+                            if item.isProtectedSystemItem {
+                                Text("System · configurable")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
                                 Image(systemName: item.supportsPressAction ? "hand.tap" : "exclamationmark.triangle").help(item.supportsPressAction ? "Supports Accessibility press" : "Accessibility activation unavailable")
                             }
                         }

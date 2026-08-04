@@ -50,7 +50,8 @@ final class MenuBarScanner {
                     existing.bundleIdentifier = bundleID
                     continue
                 }
-                results.append(MenuBarItem(id: id, title: title, ownerName: isProtected ? "System Menu Bar" : ownerName, bundleIdentifier: bundleID, frame: frame, axElement: child, applicationIcon: app.icon, isSelected: !isProtected && selectedIDs.contains(id), supportsPressAction: supportsPress, isProtectedSystemItem: isProtected))
+                let isSelected = selectedIDs.contains(id) || (isProtected && isHiddenMenuBarFrame(frame))
+                results.append(MenuBarItem(id: id, title: title, ownerName: isProtected ? "System Menu Bar" : ownerName, bundleIdentifier: bundleID, frame: frame, axElement: child, applicationIcon: app.icon, isSelected: isSelected, supportsPressAction: supportsPress, isProtectedSystemItem: isProtected))
             }
         }
         return results.sorted { $0.frame.minX < $1.frame.minX }
@@ -103,7 +104,7 @@ final class MenuBarScanner {
             let alternateOwnerKey = candidate.ownerKey == "Control Center" ? "com.apple.controlcenter" : candidate.ownerKey
             let alternateID = "window|\(alternateOwnerKey)|\(candidate.title)|\(occurrence)"
             let legacyID = "window|\(candidate.title)|\(legacyOccurrence)"
-            let isSelected = !isProtected && (selectedIDs.contains(id) || selectedIDs.contains(alternateID) || selectedIDs.contains(legacyID))
+            let isSelected = selectedIDs.contains(id) || selectedIDs.contains(alternateID) || selectedIDs.contains(legacyID) || (isProtected && isHiddenMenuBarFrame(candidate.frame))
             let displayTitle = candidate.title == "Item-0" ? "Menu Bar Item" : title
             return MenuBarItem(id: id, title: displayTitle, ownerName: isProtected ? "System Menu Bar" : candidate.owner, bundleIdentifier: candidate.ownerKey, frame: candidate.frame, axElement: nil, applicationIcon: candidate.appIcon, isSelected: isSelected, supportsPressAction: false, windowID: CGWindowID(candidate.identifier), ownerPID: pid_t(candidate.ownerPID), isProtectedSystemItem: isProtected)
         }

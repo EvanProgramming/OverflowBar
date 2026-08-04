@@ -2,6 +2,13 @@ import AppKit
 import ApplicationServices
 
 enum MenuBarSystemItemClassifier {
+    static func isGenericControlCenterItem(_ title: String, owner: String? = nil) -> Bool {
+        let normalized = normalize(title)
+        let normalizedOwner = normalize(owner ?? "")
+        return normalizedOwner.contains("controlcenter") &&
+            ["item-0", "item0", "statusmenu", "menubaritem"].contains(normalized)
+    }
+
     static func isProtected(_ title: String, owner: String? = nil) -> Bool {
         let normalized = normalize(title)
         if normalized.contains("clock") ||
@@ -19,9 +26,7 @@ enum MenuBarSystemItemClassifier {
         // macOS 26 gives several Control Center-owned status items only a
         // generic WindowServer/AX title (for example "Item-0" or
         // "status menu"). Their owner is the reliable system boundary.
-        let normalizedOwner = normalize(owner ?? "")
-        return normalizedOwner.contains("controlcenter") &&
-            ["item-0", "item0", "statusmenu", "menubaritem"].contains(normalized)
+        return isGenericControlCenterItem(title, owner: owner)
     }
 
     static func canonicalName(_ title: String, owner: String? = nil) -> String {
