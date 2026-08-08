@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import OSLog
 
@@ -23,6 +24,20 @@ final class MenuBarLayoutManager {
 
     func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int = 0, completion: @escaping (Int) -> Void = { _ in }) {
         guard isEnabled else { completion(0); return }
+        if #available(macOS 26.0, *) {
+            hideWindowBacked(items, relativeTo: controlFrame, targetAttempt: targetAttempt, completion: completion)
+        } else {
+            let accessibilityItems = items.filter { $0.windowID == nil && $0.axElement != nil }
+            let windowItems = items.filter { $0.windowID != nil || $0.axElement == nil }
+            let movedAccessibility = hideAccessibilityItems(accessibilityItems)
+            guard !windowItems.isEmpty else { completion(movedAccessibility); return }
+            hideWindowBacked(windowItems, relativeTo: controlFrame, targetAttempt: targetAttempt) { moved in
+                completion(movedAccessibility + moved)
+            }
+        }
+    }
+
+    private func hideWindowBacked(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int, completion: @escaping (Int) -> Void) {
         let managedWindowIDs = Set(items.compactMap(\.windowID))
         let managedSystemNames = protectedNames(for: items)
         restoreProtectedSystemItems(excluding: managedWindowIDs, excludingSystemNames: managedSystemNames) { [weak self] _ in
@@ -58,6 +73,10 @@ final class MenuBarLayoutManager {
     }
 
     func reveal(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
+        if #unavailable(macOS 26.0), item.windowID == nil, let element = item.axElement {
+            completion(setAXPosition(item.frame.origin, for: element))
+            return
+        }
         guard let target = controlTargetWindow() else { completion(false); return }
         // The hidden-section separator reaches the control item's left edge,
         // so the only valid temporary visible slot is immediately to its right.
@@ -65,6 +84,10 @@ final class MenuBarLayoutManager {
     }
 
     func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
+        if #unavailable(macOS 26.0), item.windowID == nil, let element = item.axElement {
+            completion(setAXPosition(hiddenAXPosition(for: item), for: element))
+            return
+        }
         guard isEnabled, let target = hiddenTargetWindow() else { completion(false); return }
         move(item, relativeTo: target.id, placement: .left, restoreCursorLocation: restoreCursorLocation, completion: completion)
     }
@@ -76,7 +99,7 @@ final class MenuBarLayoutManager {
         // Control Center windows are not draggable status items, so do not
         // report a failed layout repair when the system leaves them in place.
         if item.isAlwaysVisibleSystemItem { return false }
-        guard item.windowID != nil else { return false }
+        guard item.windowID != nil || item.axElement != nil else { return false }
         return isVisible(item)
     }
 
@@ -88,10 +111,10 @@ final class MenuBarLayoutManager {
     /// directly to invalid (negative) coordinates.
     func isVisible(_ item: MenuBarItem) -> Bool {
         guard let windowID = item.windowID else {
-            // Accessibility-backed items are never moved by the layout
-            // manager and therefore have no WindowServer ID. Their scanner
-            // frame is the authoritative visible position.
-            return Self.isVisibleMenuBarFrame(item.frame)
+            guard let element = item.axElement, let frame = currentAXFrame(for: element) else {
+                return Self.isVisibleMenuBarFrame(item.frame)
+            }
+            return Self.isVisibleMenuBarFrame(frame)
         }
         guard let frame = currentFrame(windowID: windowID) else { return false }
         return Self.isVisibleMenuBarFrame(frame)
@@ -112,11 +135,24 @@ final class MenuBarLayoutManager {
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
+        if #unavailable(macOS 26.0) {
+            let accessibilityItems = items.filter { $0.windowID == nil && $0.axElement != nil }
+            let windowItems = items.filter { $0.windowID != nil || $0.axElement == nil }
+            let restoredAccessibility = restoreAccessibilityItems(accessibilityItems)
+            guard !windowItems.isEmpty else { completion(restoredAccessibility); return }
+            guard let target = controlTargetWindow() else { completion(restoredAccessibility); return }
+            restoreSequentially(Array(windowItems.reversed()), index: 0, target: target, movedCount: restoredAccessibility, completion: completion)
+            return
+        }
         guard let target = controlTargetWindow() else { completion(0); return }
         restoreSequentially(Array(items.reversed()), index: 0, target: target, movedCount: 0, completion: completion)
     }
 
     func show(_ item: MenuBarItem) {
+        if #unavailable(macOS 26.0), item.windowID == nil, let element = item.axElement {
+            _ = setAXPosition(item.frame.origin, for: element)
+            return
+        }
         guard let target = controlTargetWindow() else { return }
         move(item, relativeTo: target.id, placement: .left) { _ in }
     }
@@ -153,6 +189,56 @@ final class MenuBarLayoutManager {
             }
         }
         return names
+    }
+
+    /// macOS 15 still exposes some third-party status items only through AX.
+    /// Their position attribute is the supported compatibility fallback for
+    /// those items; WindowServer-targeted drags remain the primary macOS 26
+    /// path because Control Center-owned items do not expose a settable AX
+    /// position there.
+    private func hideAccessibilityItems(_ items: [MenuBarItem]) -> Int {
+        items.reduce(into: 0) { moved, item in
+            guard let element = item.axElement,
+                  setAXPosition(hiddenAXPosition(for: item), for: element) else { return }
+            moved += 1
+        }
+    }
+
+    private func restoreAccessibilityItems(_ items: [MenuBarItem]) -> Int {
+        items.reduce(into: 0) { restored, item in
+            guard let element = item.axElement,
+                  setAXPosition(item.frame.origin, for: element) else { return }
+            restored += 1
+        }
+    }
+
+    private func hiddenAXPosition(for item: MenuBarItem) -> CGPoint {
+        let leftEdge = NSScreen.screens.map(\.frame.minX).min() ?? 0
+        return CGPoint(x: leftEdge - item.frame.width - 16, y: item.frame.minY)
+    }
+
+    private func setAXPosition(_ point: CGPoint, for element: AXUIElement) -> Bool {
+        var position = point
+        guard let value = AXValueCreate(.cgPoint, &position) else { return false }
+        var settable = DarwinBoolean(false)
+        guard AXUIElementIsAttributeSettable(element, kAXPositionAttribute as CFString, &settable) == .success,
+              settable.boolValue else { return false }
+        return AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value) == .success
+    }
+
+    private func currentAXFrame(for element: AXUIElement) -> CGRect? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success,
+              let position = value, CFGetTypeID(position) == AXValueGetTypeID(),
+              AXValueGetType(position as! AXValue) == .cgPoint else { return nil }
+        var point = CGPoint.zero
+        AXValueGetValue(position as! AXValue, .cgPoint, &point)
+        guard AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &value) == .success,
+              let sizeValue = value, CFGetTypeID(sizeValue) == AXValueGetTypeID(),
+              AXValueGetType(sizeValue as! AXValue) == .cgSize else { return nil }
+        var size = CGSize.zero
+        AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+        return CGRect(origin: point, size: size)
     }
 
     private func hideSequentially(_ items: [MenuBarItem], index: Int, movedCount: Int, completion: @escaping (Int) -> Void) {

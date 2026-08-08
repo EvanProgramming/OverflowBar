@@ -6,12 +6,80 @@ import ApplicationServices
 final class MenuBarScanner {
     private let excludedTitles = Set(["OverflowBarControlItem", "OverflowBarHiddenSection"])
     func scan(selectedIDs: Set<String>) -> [MenuBarItem] {
-        // WindowServer is the authoritative, bounded source for status-item
-        // windows. Accessibility calls are intentionally not performed here:
-        // AXUIElementCopyAttributeValue can block indefinitely while a login
-        // item or Control Center is rebuilding its menu bar, which previously
-        // froze the application's main actor during refresh/hover.
-        return scanWindowBackedItems(selectedIDs: selectedIDs)
+        let windowItems = scanWindowBackedItems(selectedIDs: selectedIDs)
+        // Sequoia exposes a number of third-party status items through the
+        // owning application's Accessibility menu bar instead of publishing
+        // a complete, draggable layer-25 window. macOS 26 needs the bounded
+        // WindowServer path above for Control Center-hosted items, while
+        // macOS 15 needs this AX enrichment/discovery path for older status
+        // item implementations.
+        if #available(macOS 26.0, *) {
+            return windowItems
+        }
+        guard AXIsProcessTrusted() else { return windowItems }
+        return scanAccessibilityItems(windowItems, selectedIDs: selectedIDs)
+    }
+
+    private func scanAccessibilityItems(_ initialResults: [MenuBarItem], selectedIDs: Set<String>) -> [MenuBarItem] {
+        var results = initialResults
+        let ownBundleID = Bundle.main.bundleIdentifier
+        for app in NSWorkspace.shared.runningApplications {
+            guard let bundleID = app.bundleIdentifier, bundleID != ownBundleID else { continue }
+            let application = AXUIElementCreateApplication(app.processIdentifier)
+            // AX calls can block while a login item is rebuilding its menu.
+            // The old unbounded traversal was the reason this path was
+            // removed; keep the macOS 15 compatibility path bounded.
+            AXUIElementSetMessagingTimeout(application, 0.25)
+            guard let menuBar = elementAttribute(application, kAXMenuBarAttribute as CFString),
+                  let children = arrayAttribute(menuBar, kAXChildrenAttribute as CFString) else { continue }
+            for child in children {
+                guard let frame = frame(of: child), frame.width > 5, frame.height > 5,
+                      isOnRightSide(frame) || isHiddenMenuBarFrame(frame) else { continue }
+                let title = stringAttribute(child, kAXTitleAttribute as CFString) ??
+                    stringAttribute(child, kAXDescriptionAttribute as CFString) ?? "Menu Bar Item"
+                let matchingIndex = results.firstIndex { existing in
+                    framesMatch(existing.frame, frame) ||
+                        (existing.ownerPID == app.processIdentifier && existing.title == title)
+                }
+                let isProtected = MenuBarSystemItemClassifier.isProtected(title, owner: bundleID)
+                // A regular application's AX menu bar also contains File/Edit
+                // style menus. Only admit unmatched elements from accessory
+                // apps; regular apps may still enrich a matching status item.
+                guard matchingIndex != nil || app.activationPolicy != .regular else { continue }
+                if title.isEmpty || excludedTitles.contains(title) ||
+                    (!isProtected && looksLikeTextMenu(title, frame: frame)) {
+                    if let matchingIndex, !results[matchingIndex].isProtectedSystemItem {
+                        results.remove(at: matchingIndex)
+                    }
+                    continue
+                }
+                let supportsPress = actionNames(child).contains(kAXPressAction as String)
+                if let matchingIndex {
+                    let existing = results[matchingIndex]
+                    existing.axElement = child
+                    existing.supportsPressAction = supportsPress
+                    if existing.isProtectedSystemItem { continue }
+                    existing.title = title
+                    existing.ownerName = app.localizedName ?? bundleID
+                    existing.bundleIdentifier = bundleID
+                    continue
+                }
+                let id = isProtected ? "system|\(MenuBarSystemItemClassifier.canonicalName(title, owner: bundleID))|0" : "\(bundleID)|\(title)"
+                results.append(MenuBarItem(
+                    id: id,
+                    title: isProtected ? MenuBarSystemItemClassifier.canonicalName(title, owner: bundleID) : title,
+                    ownerName: isProtected ? "System Menu Bar" : (app.localizedName ?? bundleID),
+                    bundleIdentifier: bundleID,
+                    frame: frame,
+                    axElement: child,
+                    applicationIcon: app.icon,
+                    isSelected: !isProtected && selectedIDs.contains(id),
+                    supportsPressAction: supportsPress,
+                    isProtectedSystemItem: isProtected
+                ))
+            }
+        }
+        return results.sorted { $0.frame.minX < $1.frame.minX }
     }
 
     /// macOS 26 exposes most menu bar controls as Control Center-owned windows.
@@ -88,10 +156,14 @@ final class MenuBarScanner {
     }
 
     func refreshAccessibility(for item: MenuBarItem) -> (element: AXUIElement, supportsPress: Bool)? {
-        // Accessibility is an optional fast path. Window-backed activation
-        // remains reliable without a synchronous AX tree walk; callers fall
-        // back to the WindowServer hit-test/temporary reveal path.
-        return nil
+        guard #unavailable(macOS 26.0), AXIsProcessTrusted() else { return nil }
+        let candidates = scanAccessibilityItems(scanWindowBackedItems(selectedIDs: []), selectedIDs: [])
+        let match = candidates.first {
+            if let windowID = item.windowID, $0.windowID == windowID { return true }
+            return $0.id == item.id
+        }
+        guard let match, let element = match.axElement else { return nil }
+        return (element, match.supportsPressAction)
     }
 
     private func isHiddenMenuBarFrame(_ frame: CGRect) -> Bool {
@@ -106,12 +178,65 @@ final class MenuBarScanner {
         }
     }
 
+    private func isOnRightSide(_ frame: CGRect) -> Bool {
+        guard let display = displayBounds().first(where: { $0.intersects(frame) }) else { return false }
+        return frame.midX > display.midX && abs(frame.minY - display.minY) <= 2
+    }
+
+    private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let horizontalOverlap = max(0, min(lhs.maxX, rhs.maxX) - max(lhs.minX, rhs.minX))
+        return horizontalOverlap >= min(lhs.width, rhs.width) * 0.5 &&
+            abs(lhs.minY - rhs.minY) <= 4
+    }
+
+    private func looksLikeTextMenu(_ title: String, frame: CGRect) -> Bool {
+        title.count > 18 || frame.width > 150
+    }
+
     private func displayBounds() -> [CGRect] {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
         var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
         return displays.prefix(Int(count)).map(CGDisplayBounds)
+    }
+
+    private func stringAttribute(_ element: AXUIElement, _ attribute: CFString) -> String? {
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(element, attribute, &value) == .success ? value as? String : nil
+    }
+
+    private func arrayAttribute(_ element: AXUIElement, _ attribute: CFString) -> [AXUIElement]? {
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(element, attribute, &value) == .success ? value as? [AXUIElement] : nil
+    }
+
+    private func elementAttribute(_ element: AXUIElement, _ attribute: CFString) -> AXUIElement? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success,
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
+
+    private func actionNames(_ element: AXUIElement) -> [String] {
+        var names: CFArray?
+        guard AXUIElementCopyActionNames(element, &names) == .success, let names else { return [] }
+        return names as? [String] ?? []
+    }
+
+    private func frame(of element: AXUIElement) -> CGRect? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success,
+              let position = value, CFGetTypeID(position) == AXValueGetTypeID(),
+              AXValueGetType(position as! AXValue) == .cgPoint else { return nil }
+        var point = CGPoint.zero
+        AXValueGetValue(position as! AXValue, .cgPoint, &point)
+        guard AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &value) == .success,
+              let sizeValue = value, CFGetTypeID(sizeValue) == AXValueGetTypeID(),
+              AXValueGetType(sizeValue as! AXValue) == .cgSize else { return nil }
+        var size = CGSize.zero
+        AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+        return CGRect(origin: point, size: size)
     }
 
 }
