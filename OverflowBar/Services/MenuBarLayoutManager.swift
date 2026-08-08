@@ -340,13 +340,13 @@ final class MenuBarLayoutManager {
             return
         }
         let startPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
-        // WindowServer needs the actual off-screen staging coordinate for the
-        // drop side of a hide drag. That coordinate may temporarily clamp the
-        // logical pointer; restoreSyntheticPointer() below repairs it after
-        // the transaction completes.
-        let destinationPoint = placement == .left
-            ? CGPoint(x: targetFrame.minX, y: targetFrame.midY)
-            : CGPoint(x: targetFrame.maxX, y: targetFrame.midY)
+        // Keep both event coordinates on an active display. The target window
+        // fields below select the status-item source/destination; using the
+        // hidden staging window's off-screen frame as the mouse-up coordinate
+        // makes WindowServer clamp the real pointer to the top-left corner.
+        // That clamp is visible to the user even when the event is later
+        // relayed to the owning process.
+        let destinationPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
         guard let down = targetedEvent(type: .leftMouseDown, point: startPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
               let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
             completion(false)
@@ -358,15 +358,6 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    // A hide drag still has to target the off-screen staging
-                    // window, so WindowServer may clamp its logical pointer
-                    // while processing the event. Restore the pointer only
-                    // after the hide transaction (never during reveal), and
-                    // only to the location captured immediately before this
-                    // transaction began.
-                    if placement == .left {
-                        self?.restoreSyntheticPointer(physicalPointerLocation)
-                    }
                     self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
                 }
             }
@@ -394,9 +385,6 @@ final class MenuBarLayoutManager {
                 self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) failed")
-                if placement == .left {
-                    self.restoreSyntheticPointer(restoreCursorLocation)
-                }
                 completion(false)
             }
         }
@@ -439,12 +427,6 @@ final class MenuBarLayoutManager {
             return CGPoint(x: x, y: y)
         }
         return CGPoint(x: 8, y: 8)
-    }
-
-    private func restoreSyntheticPointer(_ point: CGPoint?) {
-        guard let point, Self.activeDisplayBounds().contains(where: { $0.contains(point) }) else { return }
-        CGWarpMouseCursorPosition(point)
-        CGAssociateMouseAndMouseCursorPosition(1)
     }
 
     private func targetedEvent(type: CGEventType, point: CGPoint, windowID: CGWindowID, pid: pid_t, source: CGEventSource, command: Bool) -> CGEvent? {
