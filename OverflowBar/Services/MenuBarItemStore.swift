@@ -23,6 +23,7 @@ final class MenuBarItemStore: ObservableObject {
     private var menuTrackingBeginObserver: NSObjectProtocol?
     private var menuTrackingEndObserver: NSObjectProtocol?
     private var menuDismissMonitor: Any?
+    private var transientDismissCheck: DispatchWorkItem?
     private var pendingRehideItem: MenuBarItem?
     private var pendingRehidePointer: CGPoint?
     // NSMenu can nest tracking sessions (for example, a submenu opened from
@@ -66,7 +67,12 @@ final class MenuBarItemStore: ObservableObject {
                 guard let self else { return }
                 self.menuTrackingDepth = max(0, self.menuTrackingDepth - 1)
                 guard self.menuTrackingDepth == 0 else { return }
-                self.rehidePendingItem()
+                if let item = self.pendingRehideItem,
+                   self.hasVisibleTransientWindow(for: item) {
+                    self.scheduleTransientDismissCheck(for: item)
+                } else {
+                    self.rehidePendingItem()
+                }
             }
         }
     }
@@ -77,6 +83,7 @@ final class MenuBarItemStore: ObservableObject {
         layoutWorkItem?.cancel()
         automaticLayoutWorkItem?.cancel()
         captureTask?.cancel()
+        transientDismissCheck?.cancel()
         if let menuTrackingBeginObserver { NotificationCenter.default.removeObserver(menuTrackingBeginObserver) }
         if let menuTrackingEndObserver { NotificationCenter.default.removeObserver(menuTrackingEndObserver) }
         if let menuDismissMonitor { NSEvent.removeMonitor(menuDismissMonitor) }
@@ -565,9 +572,8 @@ final class MenuBarItemStore: ObservableObject {
         // monitor after the originating click has completed. While an NSMenu
         // is tracking, menu-item clicks must be allowed to reach that menu;
         // the persistent didEndTracking observer above performs the rehide
-        // after the menu has actually closed. For popovers, a click inside a
-        // transient owner window is also allowed through, while a click
-        // outside dismisses the temporary layout immediately.
+        // after the menu has actually closed. Foreign-process menus are
+        // handled by the bounded window-presence check below.
         if let menuDismissMonitor { NSEvent.removeMonitor(menuDismissMonitor) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             guard let self, self.pendingRehideItem != nil else { return }
@@ -575,9 +581,12 @@ final class MenuBarItemStore: ObservableObject {
                 Task { @MainActor in
                     guard let self,
                           let item = self.pendingRehideItem,
-                          self.menuTrackingDepth == 0,
-                          !self.mouseIsInsideTransientWindow(for: item) else { return }
-                    self.rehidePendingItem()
+                          self.menuTrackingDepth == 0 else { return }
+                    // Check after the click has had time to open or dismiss a
+                    // foreign-process menu. Never use the stale hardware
+                    // pointer location as the deciding signal: synthetic
+                    // activation events can leave it behind the menu item.
+                    self.scheduleTransientDismissCheck(for: item)
                 }
             }
         }
@@ -586,7 +595,14 @@ final class MenuBarItemStore: ObservableObject {
         // not emit didEndTracking. Keep the item visible long enough for the
         // popover to open, then use a bounded fallback to restore the layout.
         rehideWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in self?.rehidePendingItem() }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, let item = self.pendingRehideItem else { return }
+            if self.hasVisibleTransientWindow(for: item) {
+                self.scheduleTransientDismissCheck(for: item)
+            } else {
+                self.rehidePendingItem()
+            }
+        }
         rehideWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: workItem)
     }
@@ -598,6 +614,8 @@ final class MenuBarItemStore: ObservableObject {
         pendingRehidePointer = nil
         rehideWorkItem?.cancel()
         rehideWorkItem = nil
+        transientDismissCheck?.cancel()
+        transientDismissCheck = nil
         if let menuDismissMonitor {
             NSEvent.removeMonitor(menuDismissMonitor)
             self.menuDismissMonitor = nil
@@ -608,6 +626,8 @@ final class MenuBarItemStore: ObservableObject {
     private func cancelPendingRehide() {
         rehideWorkItem?.cancel()
         rehideWorkItem = nil
+        transientDismissCheck?.cancel()
+        transientDismissCheck = nil
         if let menuDismissMonitor {
             NSEvent.removeMonitor(menuDismissMonitor)
             self.menuDismissMonitor = nil
@@ -616,35 +636,43 @@ final class MenuBarItemStore: ObservableObject {
         pendingRehidePointer = nil
     }
 
-    /// Returns true when the current click is inside a visible transient
-    /// window owned by the application that opened the menu-bar item. Normal
-    /// application windows are layer 0 and are intentionally ignored; menu
-    /// and popover windows are above that layer. Quartz window bounds use a
-    /// top-left origin, so convert the AppKit mouse location before testing.
-    private func mouseIsInsideTransientWindow(for item: MenuBarItem) -> Bool {
+    /// Control Center's menus are foreign-process windows and never produce
+    /// our NSMenu tracking notifications. Poll only after a user click rather
+    /// than while idle, so a menu item click is never followed by an immediate
+    /// rehide that dismisses the menu itself.
+    private func hasVisibleTransientWindow(for item: MenuBarItem) -> Bool {
         guard let ownerPID = item.ownerPID else { return false }
-        let appPoint = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(appPoint) }) ?? NSScreen.main else { return false }
-        let quartzPoint = CGPoint(x: appPoint.x, y: screen.frame.maxY - appPoint.y)
+        let protectedOwner = item.bundleIdentifier == "Control Center" ||
+            NSRunningApplication(processIdentifier: ownerPID)?.bundleIdentifier == "com.apple.controlcenter"
         let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
         return windows.contains { info in
             guard let windowPID = info[kCGWindowOwnerPID as String] as? Int,
-                  pid_t(windowPID) == ownerPID,
                   let layer = info[kCGWindowLayer as String] as? Int,
-                  layer > 0,
                   let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return false }
-            let frame = CGRect(
-                x: bounds["X"] ?? 0,
-                y: bounds["Y"] ?? 0,
-                width: bounds["Width"] ?? 0,
-                height: bounds["Height"] ?? 0
-            )
-            // A layer-25 status-item window is only a menu-bar control when
-            // it is confined to the 40pt menu-bar strip. Larger layer-25
-            // popovers are transient interaction surfaces and must remain
-            // clickable just like the usual layer-101 menu windows.
-            if layer == 25 && frame.height <= 40 { return false }
-            return frame.width > 4 && frame.height > 4 && frame.contains(quartzPoint)
+            let windowOwner = (info[kCGWindowOwnerName as String] as? String) ?? ""
+            let sameOwner = pid_t(windowPID) == ownerPID || (protectedOwner && windowOwner == "Control Center")
+            guard sameOwner else { return false }
+            let width = bounds["Width"] ?? 0
+            let height = bounds["Height"] ?? 0
+            guard layer > 25 || (layer == 25 && height > 40) else { return false }
+            return width > 4 && height > 4
         }
+    }
+
+    private func scheduleTransientDismissCheck(for item: MenuBarItem, attempt: Int = 0) {
+        guard pendingRehideItem?.id == item.id else { return }
+        transientDismissCheck?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.pendingRehideItem?.id == item.id else { return }
+            if self.hasVisibleTransientWindow(for: item) {
+                // Keep a low-duty check alive for menus that remain open
+                // beyond the normal eight-second safety window.
+                self.scheduleTransientDismissCheck(for: item, attempt: min(attempt + 1, 80))
+            } else {
+                self.rehidePendingItem()
+            }
+        }
+        transientDismissCheck = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 }

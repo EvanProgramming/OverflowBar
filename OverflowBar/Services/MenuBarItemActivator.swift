@@ -171,20 +171,29 @@ final class MenuBarItemActivator {
     /// than sending a stale event to (0, 0).
     private func visiblePoint(for item: MenuBarItem) -> CGPoint? {
         let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        let records: [(id: CGWindowID, pid: pid_t, frame: CGRect)] = windows.compactMap { info in
+        let records: [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] = windows.compactMap { info in
             guard (info[kCGWindowLayer as String] as? Int) == 25,
                   let id = info[kCGWindowNumber as String] as? Int,
                   let pid = info[kCGWindowOwnerPID as String] as? Int,
                   let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
             let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
             guard isVisibleMenuBarFrame(frame) else { return nil }
-            return (CGWindowID(id), pid_t(pid), frame)
+            let title = (info[kCGWindowName as String] as? String) ?? ""
+            return (CGWindowID(id), pid_t(pid), title, frame)
         }
         if let windowID = item.windowID,
            let exact = records.first(where: { $0.id == windowID }) {
             return CGPoint(x: exact.frame.midX, y: exact.frame.midY)
         }
         if let ownerPID = item.ownerPID {
+            // Control Center may replace a status-item window while it is
+            // being revealed. Prefer the status item's published title before
+            // falling back to geometry; otherwise the first visible generic
+            // Item-0 window can receive the click instead.
+            if item.title != "Menu Bar Item",
+               let titled = records.first(where: { $0.pid == ownerPID && $0.title == item.title }) {
+                return CGPoint(x: titled.frame.midX, y: titled.frame.midY)
+            }
             let preferredX = item.frame.midX
             return records
                 .filter { $0.pid == ownerPID }
