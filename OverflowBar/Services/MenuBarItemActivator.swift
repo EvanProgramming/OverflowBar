@@ -200,6 +200,12 @@ final class MenuBarItemActivator {
                 .min(by: { abs($0.frame.midX - preferredX) < abs($1.frame.midX - preferredX) })
                 .map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) }
         }
+        if #available(macOS 27.0, *), isValidMenuBarPoint(CGPoint(x: item.frame.midX, y: item.frame.midY)) {
+            // A composite macOS 27 host may not publish a small layer-25
+            // window at all. The AX element's current frame is the safer
+            // coordinate for an already-visible context-menu click.
+            return CGPoint(x: item.frame.midX, y: item.frame.midY)
+        }
         // AX-backed items do not carry a window number. This fallback is only
         // allowed for an already-visible positive frame; hidden items take
         // the reveal path in MenuBarItemStore instead.

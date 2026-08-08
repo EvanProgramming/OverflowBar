@@ -4,6 +4,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+- Add a macOS 27 compatibility path that avoids obsolete per-status-item WindowServer drags, uses bounded Accessibility position updates when the OS exposes individual status-item elements, and disables the legacy staging section so it cannot compete with the native overflow control.
+
 - Added a bounded macOS 15 Accessibility compatibility path for discovering, hiding, restoring, temporarily revealing, and re-hiding status items that do not publish a usable WindowServer status window.
 - Made hidden-layout window discovery display-aware so selected icons can be moved on vertically arranged external displays and systems whose global menu-bar Y coordinate is not zero.
 - Added an alternative third-party Homebrew Cask installation path backed by versioned GitHub Release artifacts and checksum validation; the DMG remains the recommended installation method.

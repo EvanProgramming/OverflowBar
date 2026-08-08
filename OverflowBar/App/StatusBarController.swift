@@ -115,6 +115,13 @@ final class StatusBarController: NSObject {
     }
 
     private func updateHiddenSectionLength() {
+        if #available(macOS 27.0, *) {
+            // macOS 27 owns the overflow slot and renders the menu bar as a
+            // composite host. Keeping our 2,000pt staging item would compete
+            // with Apple's native expand/collapse control.
+            hiddenSectionItem.length = 0
+            return
+        }
         guard store.isReadyForManagedLayout,
               store.layoutManagementEnabled,
               !store.selectedItems.isEmpty else {

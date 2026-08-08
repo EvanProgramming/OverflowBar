@@ -31,6 +31,11 @@ struct SettingsView: View {
                 Text("OverflowBar keeps the original menu-bar order while the hidden layout is applied. Items are moved only after you enable this setting; visible status windows use a direct, low-latency click path.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if #available(macOS 27.0, *) {
+                    Text("macOS 27 uses a unified menu-bar host. OverflowBar uses Accessibility per-item controls when available; items that macOS does not expose individually remain under the system's native overflow control.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 HStack {
                     Button("Apply Hidden Layout") { store.applyLayout() }.disabled(!store.layoutManagementEnabled || store.selectedItems.isEmpty)
                     Button("Restore All Managed Icons") { store.restoreLayout() }.disabled(store.selectedItems.isEmpty)

@@ -13,6 +13,13 @@ final class MenuBarScanner {
         // WindowServer path above for Control Center-hosted items, while
         // macOS 15 needs this AX enrichment/discovery path for older status
         // item implementations.
+        // macOS 27 no longer guarantees one WindowServer window per status
+        // item. Prefer the per-item AX tree there; the old layer-25 list can
+        // otherwise collapse into one composite menu-bar host.
+        if #available(macOS 27.0, *) {
+            guard AXIsProcessTrusted() else { return windowItems }
+            return scanAccessibilityItems(windowItems, selectedIDs: selectedIDs)
+        }
         if #available(macOS 26.0, *) {
             return windowItems
         }
@@ -156,7 +163,13 @@ final class MenuBarScanner {
     }
 
     func refreshAccessibility(for item: MenuBarItem) -> (element: AXUIElement, supportsPress: Bool)? {
-        guard #unavailable(macOS 26.0), AXIsProcessTrusted() else { return nil }
+        if #available(macOS 27.0, *) {
+            // macOS 27 needs a fresh AX element after the system rebuilds its
+            // composite host. Continue below.
+        } else if #available(macOS 26.0, *) {
+            return nil
+        }
+        guard AXIsProcessTrusted() else { return nil }
         let candidates = scanAccessibilityItems(scanWindowBackedItems(selectedIDs: []), selectedIDs: [])
         let match = candidates.first {
             if let windowID = item.windowID, $0.windowID == windowID { return true }
@@ -180,7 +193,14 @@ final class MenuBarScanner {
 
     private func isOnRightSide(_ frame: CGRect) -> Bool {
         guard let display = displayBounds().first(where: { $0.intersects(frame) }) else { return false }
-        return frame.midX > display.midX && abs(frame.minY - display.minY) <= 2
+        // AX uses AppKit's bottom-left screen origin while Quartz window
+        // bounds use the menu-bar scanner's top-left convention on older
+        // releases. Accept both edge representations so macOS 27's AX
+        // children are not discarded solely because their coordinate origin
+        // differs from the WindowServer list.
+        let nearQuartzMenuBar = abs(frame.minY - display.minY) <= 4
+        let nearAppKitMenuBar = abs(frame.maxY - display.maxY) <= 50
+        return frame.midX > display.midX && (nearQuartzMenuBar || nearAppKitMenuBar)
     }
 
     private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {

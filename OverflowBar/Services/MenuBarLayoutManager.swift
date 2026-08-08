@@ -24,6 +24,15 @@ final class MenuBarLayoutManager {
 
     func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int = 0, completion: @escaping (Int) -> Void = { _ in }) {
         guard isEnabled else { completion(0); return }
+        if #available(macOS 27.0, *) {
+            // The macOS 27 menu bar is a composite host. Never send the old
+            // per-window Command-drag event to that host: it cannot hide a
+            // single icon and can move or disturb the whole bar. AX-backed
+            // children are attempted individually; unsupported children are
+            // intentionally left visible and reported by the caller.
+            completion(hideAccessibilityItems(items.filter { $0.axElement != nil }))
+            return
+        }
         if #available(macOS 26.0, *) {
             hideWindowBacked(items, relativeTo: controlFrame, targetAttempt: targetAttempt, completion: completion)
         } else {
@@ -73,6 +82,11 @@ final class MenuBarLayoutManager {
     }
 
     func reveal(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void) {
+        if #available(macOS 27.0, *) {
+            guard let element = item.axElement else { completion(false); return }
+            completion(setAXPosition(item.frame.origin, for: element))
+            return
+        }
         if #unavailable(macOS 26.0), item.windowID == nil, let element = item.axElement {
             completion(setAXPosition(item.frame.origin, for: element))
             return
@@ -84,6 +98,11 @@ final class MenuBarLayoutManager {
     }
 
     func rehide(_ item: MenuBarItem, restoreCursorLocation: CGPoint? = nil, completion: @escaping (Bool) -> Void = { _ in }) {
+        if #available(macOS 27.0, *) {
+            guard isEnabled, let element = item.axElement else { completion(false); return }
+            completion(setAXPosition(hiddenAXPosition(for: item), for: element))
+            return
+        }
         if #unavailable(macOS 26.0), item.windowID == nil, let element = item.axElement {
             completion(setAXPosition(hiddenAXPosition(for: item), for: element))
             return
@@ -135,6 +154,10 @@ final class MenuBarLayoutManager {
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
+        if #available(macOS 27.0, *) {
+            completion(restoreAccessibilityItems(items.filter { $0.axElement != nil }))
+            return
+        }
         if #unavailable(macOS 26.0) {
             let accessibilityItems = items.filter { $0.windowID == nil && $0.axElement != nil }
             let windowItems = items.filter { $0.windowID != nil || $0.axElement == nil }
@@ -149,6 +172,11 @@ final class MenuBarLayoutManager {
     }
 
     func show(_ item: MenuBarItem) {
+        if #available(macOS 27.0, *) {
+            guard let element = item.axElement else { return }
+            _ = setAXPosition(item.frame.origin, for: element)
+            return
+        }
         if #unavailable(macOS 26.0), item.windowID == nil, let element = item.axElement {
             _ = setAXPosition(item.frame.origin, for: element)
             return

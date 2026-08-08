@@ -27,14 +27,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
           app_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' OverflowBar/Resources/Info.plist)
-          test "${GITHUB_REF_NAME}" = "v${app_version}"
+          if [[ "$tag_version" == *-macos27-compat.* ]]; then
+            base_version="${tag_version%%-macos27-*}"
+            test "$base_version" = "$app_version"
+          else
+            test "$tag_version" = "$app_version"
+          fi
           plutil -lint OverflowBar/Resources/Info.plist
           bash -n scripts/create-dmg.sh
-          bash scripts/validate-homebrew-cask.sh
+          if [[ "$tag_version" != *-macos27-compat.* ]]; then
+            bash scripts/validate-homebrew-cask.sh
+          fi
 
       - name: Build release DMG
-        run: ./scripts/create-dmg.sh
+        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/create-dmg.sh
 
       - name: Verify release artifacts
         shell: bash
@@ -51,9 +59,16 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
+          notes_file="RELEASE_NOTES.md"
+          release_args=()
+          if [[ "$version" == *-macos27-compat.* ]]; then
+            notes_file="RELEASE_NOTES_MACOS27.md"
+            release_args+=(--prerelease)
+          fi
           gh release create "${GITHUB_REF_NAME}" \
             "dist/OverflowBar-${version}.dmg" \
             "dist/OverflowBar-${version}.dmg.sha256" \
             --title "OverflowBar ${version}" \
-            --notes-file RELEASE_NOTES.md \
+            --notes-file "$notes_file" \
+            "${release_args[@]}" \
             --verify-tag

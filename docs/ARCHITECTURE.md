@@ -57,6 +57,16 @@ The expanding hidden delimiter creates an offscreen managed section to the left 
 
 `MenuBarItemActivator` prefers `AXPress`. When direct activation is unavailable, the layout manager temporarily reveals the original item, activates it, and re-hides it after the next user interaction or a bounded timeout.
 
+### macOS 27 compatibility boundary
+
+macOS 27 introduces a native overflow affordance and no longer guarantees one
+WindowServer layer-25 window per status item. The legacy WindowServer drag path
+is therefore disabled on macOS 27. The scanner first attempts to resolve
+individual Accessibility menu-bar children, and the layout manager changes only
+an element whose Accessibility position is explicitly settable. Items that are
+only represented by Apple's composite host are left under the system's native
+overflow behavior; OverflowBar does not send a synthetic drag to that host.
+
 Targeted events preserve the physical cursor position and validate the final window position before reporting success.
 
 ### Presentation
