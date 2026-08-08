@@ -4,6 +4,7 @@ All notable user-visible changes to OverflowBar are documented here.
 
 ## [Unreleased]
 
+- Made hidden-layout window discovery display-aware so selected icons can be moved on vertically arranged external displays and systems whose global menu-bar Y coordinate is not zero.
 - Added an alternative third-party Homebrew Cask installation path backed by versioned GitHub Release artifacts and checksum validation; the DMG remains the recommended installation method.
 - Isolated synthetic menu-bar activation events so unrelated applications keep their real pointer and hover state.
 - Kept OverflowBar visible while an activated application's menu or popover is being used, rehiding it only after the transient UI is dismissed.

@@ -382,6 +382,13 @@ final class MenuBarLayoutManager {
         }
     }
 
+    private static func isMenuBarWindowFrame(_ frame: CGRect) -> Bool {
+        if frame.maxX <= 0 && frame.minY >= 0 && frame.maxY <= 40 {
+            return frame.width > 4 && frame.height > 4
+        }
+        return isVisibleMenuBarFrame(frame)
+    }
+
     private static func activeDisplayBounds() -> [CGRect] {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
@@ -394,13 +401,19 @@ final class MenuBarLayoutManager {
 
     private static func fetchWindowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] {
         let list = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        return list.compactMap { info in
+        return list.compactMap { info -> (id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)? in
             guard (info[kCGWindowLayer as String] as? Int) == 25,
                   let id = info[kCGWindowNumber as String] as? Int,
                   let pid = info[kCGWindowOwnerPID as String] as? Int,
                   let b = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
             let frame = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
-            guard frame.minY == 0, frame.height <= 40 else { return nil }
+            // Quartz window coordinates are global. On a vertically arranged
+            // multi-display setup, or on systems that place the menu bar at a
+            // non-zero global Y coordinate, the primary-display assumption
+            // `frame.minY == 0` drops every real status-item window. Keep the
+            // layout path aligned with the scanner's display-aware geometry
+            // check, while still retaining offscreen hidden-section windows.
+            guard Self.isMenuBarWindowFrame(frame) else { return nil }
             return (CGWindowID(id), pid_t(pid), info[kCGWindowName as String] as? String ?? "", info[kCGWindowOwnerName as String] as? String ?? "", frame)
         }
     }
