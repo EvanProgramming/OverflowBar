@@ -32,50 +32,45 @@ final class MenuBarEventRelay {
             callback: Self.callback,
             userInfo: info
         )
-        guard let sessionTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .tailAppendEventTap,
-            // Consume the injected event after forwarding the exact event to
-            // the target process. Returning the event from a listen-only tap
-            // lets it continue through WindowServer and makes every other app
-            // observe a synthetic mouse down/up at the menu-bar coordinate.
-            // That leaves hover and button state stale in unrelated apps.
-            options: .defaultTap,
-            eventsOfInterest: 1 << event.type.rawValue,
-            callback: Self.callback,
-            userInfo: info
-        ) else { return nil }
-
         self.pidTap = pidTap
-        self.sessionTap = sessionTap
         if let pidTap {
             pidSource = CFMachPortCreateRunLoopSource(nil, pidTap, 0)
+            guard let sessionTap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .tailAppendEventTap,
+                // Consume the session copy for regular applications, then
+                // forward the exact event to the owner process.
+                options: .defaultTap,
+                eventsOfInterest: 1 << event.type.rawValue,
+                callback: Self.callback,
+                userInfo: info
+            ) else { return nil }
+            self.sessionTap = sessionTap
+            sessionSource = CFMachPortCreateRunLoopSource(nil, sessionTap, 0)
         }
-        sessionSource = CFMachPortCreateRunLoopSource(nil, sessionTap, 0)
     }
 
     func start() {
-        guard let sessionTap, let sessionSource else {
-            finish(false)
+        // Control Center and a few other protected owners reject process
+        // taps. Posting the already-targeted event directly to the session is
+        // the only reliable path for those status items; adding a listen-only
+        // tap here makes WindowServer swallow the event on recent macOS.
+        guard let pidTap, let sessionTap, let sessionSource, let pidSource else {
+            event.post(tap: .cgSessionEventTap)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.finish(true)
+            }
             return
         }
         let runLoop = CFRunLoopGetMain()
-        if let pidSource {
-            CFRunLoopAddSource(runLoop, pidSource, .commonModes)
-        }
+        CFRunLoopAddSource(runLoop, pidSource, .commonModes)
         CFRunLoopAddSource(runLoop, sessionSource, .commonModes)
-        if let pidTap {
-            CGEvent.tapEnable(tap: pidTap, enable: true)
-        }
+        CGEvent.tapEnable(tap: pidTap, enable: true)
         CGEvent.tapEnable(tap: sessionTap, enable: true)
 
-        if pidTap != nil {
-            let nullEvent = CGEvent(source: nil)!
-            nullEvent.setIntegerValueField(.eventSourceUserData, value: nullMarker)
-            nullEvent.postToPid(pid)
-        } else {
-            event.post(tap: .cgSessionEventTap)
-        }
+        let nullEvent = CGEvent(source: nil)!
+        nullEvent.setIntegerValueField(.eventSourceUserData, value: nullMarker)
+        nullEvent.postToPid(pid)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in self?.finish(false) }
     }
 
@@ -90,9 +85,19 @@ final class MenuBarEventRelay {
         if type == relay.event.type,
            incoming.getIntegerValueField(.eventSourceUserData) == relay.event.getIntegerValueField(.eventSourceUserData) {
             if let sessionTap = relay.sessionTap { CGEvent.tapEnable(tap: sessionTap, enable: false) }
-            relay.event.postToPid(relay.pid)
+            if relay.pidTap != nil {
+                // The process tap path must consume the session copy so the
+                // synthetic click is not observed by unrelated applications.
+                relay.event.postToPid(relay.pid)
+                DispatchQueue.main.async { relay.finish(true) }
+                return nil
+            }
+            // Control Center does not allow a process tap. Let the original
+            // session event continue through WindowServer; its target PID and
+            // window fields deliver it to the status item without a cursor
+            // warp or a second synthetic event.
             DispatchQueue.main.async { relay.finish(true) }
-            return nil
+            return Unmanaged.passUnretained(incoming)
         }
         return Unmanaged.passUnretained(incoming)
     }
