@@ -12,6 +12,11 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
     private var closeWorkItem: DispatchWorkItem?
     private weak var anchorButton: NSStatusBarButton?
     var onVisibilityChanged: ((Bool) -> Void)?
+    // Synthetic status-item clicks can generate a mouse-moved notification at
+    // the menu bar. Tell the owner before dispatching the activation so its
+    // hover revealer cannot immediately reopen this panel over the menu that
+    // the click just opened.
+    var onItemActivation: (() -> Void)?
 
     init(store: MenuBarItemStore) {
         self.store = store
@@ -30,9 +35,11 @@ final class OverflowPanelController: NSObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.delegate = self
         panel.contentView = NSHostingView(rootView: OverflowPanelView(store: store, presentation: presentation, onActivate: { [weak self] item in
+            self?.onItemActivation?()
             self?.close()
             self?.store.activate(item)
         }, onRightActivate: { [weak self] item in
+            self?.onItemActivation?()
             self?.close()
             self?.store.activate(item, mouseButton: .right)
         }))

@@ -221,7 +221,7 @@ final class MenuBarLayoutManager {
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
-              let source = CGEventSource(stateID: .privateState),
+              let source = eventSource(for: ownerPID),
               let down = targetedEvent(type: .leftMouseDown, point: CGPoint(x: 20_000, y: 20_000), windowID: itemWindowID, pid: ownerPID, source: source, command: true),
               let up = targetedEvent(type: .leftMouseUp, point: CGPoint(x: placement == .left ? targetFrame.minX : targetFrame.maxX, y: targetFrame.midY), windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
             completion(false)
@@ -284,10 +284,22 @@ final class MenuBarLayoutManager {
         relay.start()
     }
 
+    private func eventSource(for pid: pid_t) -> CGEventSource? {
+        let state: CGEventSourceStateID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
+            ? .hidSystemState
+            : .privateState
+        return CGEventSource(stateID: state)
+    }
+
     private func targetedEvent(type: CGEventType, point: CGPoint, windowID: CGWindowID, pid: pid_t, source: CGEventSource, command: Bool) -> CGEvent? {
         guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left) else { return nil }
         event.flags = command ? .maskCommand : []
-        event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
+        // WindowServer rejects the target-PID field for Control Center's
+        // hosted status-item scenes. The window ID is sufficient for that
+        // protected owner; keep the PID field for ordinary app relays.
+        if NSRunningApplication(processIdentifier: pid)?.bundleIdentifier != "com.apple.controlcenter" {
+            event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
+        }
         event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
         event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(windowID))
         event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(windowID))

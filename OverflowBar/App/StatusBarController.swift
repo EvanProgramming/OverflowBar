@@ -9,6 +9,7 @@ final class StatusBarController: NSObject {
     private let showSettings: () -> Void
     private var hoverMonitor: Any?
     private var pointerIsAtMenuBar = false
+    private var hoverRevealSuppressedUntilPointerLeaves = false
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
         let defaults = UserDefaults.standard
@@ -49,6 +50,15 @@ final class StatusBarController: NSObject {
         panelController.onVisibilityChanged = { [weak self] isVisible in
             self?.statusItem.button?.image = Self.statusBarImage(isExpanded: isVisible)
         }
+        panelController.onItemActivation = { [weak self] in
+            // The activation path posts a real session click at a temporary
+            // menu-bar position. Some macOS versions emit a synthetic
+            // mouseMoved for that event; keep the hover revealer dormant
+            // until the pointer has actually left the menu bar, otherwise
+            // the panel can reopen on top of the menu just opened.
+            self?.hoverRevealSuppressedUntilPointerLeaves = true
+            self?.pointerIsAtMenuBar = true
+        }
         // Observe mouse movement without consuming or synthesizing events.
         // This removes the old 250ms polling interval plus 120ms debounce, so
         // the panel starts its animation on the first movement into the menu
@@ -78,6 +88,12 @@ final class StatusBarController: NSObject {
             return
         }
         let atMenuBar = NSEvent.mouseLocation.y >= screen.frame.maxY - NSStatusBar.system.thickness - 2
+        if !atMenuBar {
+            pointerIsAtMenuBar = false
+            hoverRevealSuppressedUntilPointerLeaves = false
+            return
+        }
+        guard !hoverRevealSuppressedUntilPointerLeaves else { return }
         guard atMenuBar != pointerIsAtMenuBar else { return }
         pointerIsAtMenuBar = atMenuBar
         guard atMenuBar, let button = statusItem.button else { return }

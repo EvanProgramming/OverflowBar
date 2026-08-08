@@ -35,8 +35,26 @@ final class MenuBarItemActivator {
             activateRightClick(item, completion: completion)
             return
         }
+        // Control Center hosts modern status items in a protected scene. Its
+        // window can be replaced during the reveal, so constructing a click
+        // from the stale item window would fail before the visible click path
+        // is reached. Resolve a fresh screen point first and use the same
+        // session event shape as a physical click.
+        if let ownerPID = item.ownerPID, isControlCenter(ownerPID),
+           let source = eventSource(for: ownerPID), let point = visiblePoint(for: item),
+           let visibleDown = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
+           let visibleUp = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) {
+            visibleDown.setIntegerValueField(.mouseEventClickState, value: 1)
+            visibleUp.setIntegerValueField(.mouseEventClickState, value: 1)
+            visibleDown.post(tap: .cgSessionEventTap)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                visibleUp.post(tap: .cgSessionEventTap)
+                completion(true)
+            }
+            return
+        }
         if let windowID = item.windowID, let ownerPID = item.ownerPID,
-           let source = CGEventSource(stateID: .privateState),
+           let source = eventSource(for: ownerPID),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left) {
             // Route the event through a short-lived relay. The relay forwards
@@ -63,7 +81,7 @@ final class MenuBarItemActivator {
     }
 
     private func activateRightClick(_ item: MenuBarItem, attempt: Int, completion: @escaping (Bool) -> Void) {
-        guard let source = CGEventSource(stateID: .privateState) else { completion(false); return }
+        guard let source = item.ownerPID.flatMap(eventSource(for:)) else { completion(false); return }
         guard let point = visiblePoint(for: item) else {
             // WindowServer can publish the new frame a few ticks after the
             // reveal verification callback. Retry the lookup briefly instead
@@ -113,7 +131,9 @@ final class MenuBarItemActivator {
         let point = CGPoint(x: frame.midX, y: frame.midY)
         guard isValidMenuBarPoint(point) else { return nil }
         guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: mouseButton) else { return nil }
-        event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
+        if NSRunningApplication(processIdentifier: pid)?.bundleIdentifier != "com.apple.controlcenter" {
+            event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
+        }
         event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
         event.setIntegerValueField(.mouseEventClickState, value: 1)
         event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(windowID))
@@ -127,6 +147,21 @@ final class MenuBarItemActivator {
         return activeDisplayBounds().contains { display in
             display.contains(point) && point.y >= display.minY && point.y <= display.minY + 50
         }
+    }
+
+    private func eventSource(for pid: pid_t) -> CGEventSource? {
+        // Control Center ignores Command-drag events generated from the
+        // private source, even though the same event is accepted from the
+        // HID source. Keep the private source for ordinary applications so
+        // their windows never observe synthetic global input.
+        let state: CGEventSourceStateID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
+            ? .hidSystemState
+            : .privateState
+        return CGEventSource(stateID: state)
+    }
+
+    private func isControlCenter(_ pid: pid_t) -> Bool {
+        NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
     }
 
     /// Resolves a fresh WindowServer frame before every synthetic event. The

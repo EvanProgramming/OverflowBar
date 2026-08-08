@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 
 /// Relays a synthetic event through the same WindowServer path used by a real
@@ -24,7 +25,12 @@ final class MenuBarEventRelay {
         // permission. Keep the session tap in that case and inject the event
         // directly into it; the session callback still forwards only to the
         // requested PID and consumes the global copy.
-        let pidTap = CGEvent.tapCreateForPid(
+        // Control Center advertises a process tap even though it does not
+        // deliver the null event used to synchronize that tap. Treat it as a
+        // protected owner up front; otherwise the relay waits for a callback
+        // that can never arrive and the subsequent drag/click is dropped.
+        let isProtectedOwner = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
+        let pidTap = isProtectedOwner ? nil : CGEvent.tapCreateForPid(
             pid: pid,
             place: .tailAppendEventTap,
             options: .defaultTap,
