@@ -2,6 +2,8 @@ import AppKit
 import ApplicationServices
 
 final class MenuBarItemActivator {
+    private var relays: [MenuBarEventRelay] = []
+
     func activateDirectly(_ item: MenuBarItem) -> Bool {
         guard let axElement = item.axElement, item.supportsPressAction else { return false }
         return AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success
@@ -37,14 +39,16 @@ final class MenuBarItemActivator {
            let source = CGEventSource(stateID: .privateState),
            let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left),
            let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left) {
-            // Control Center owns most status-item windows on recent macOS,
-            // but it does not consistently consume events posted directly to
-            // its PID. A session-tap click follows the same WindowServer path
-            // as a real menu-bar click while leaving the physical cursor put.
-            down.post(tap: .cgSessionEventTap)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                up.post(tap: .cgSessionEventTap)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { completion(true) }
+            // Route the event through a short-lived relay. The relay forwards
+            // it to the owner process and consumes the session copy, so other
+            // applications never receive a synthetic click at this item's
+            // screen coordinate.
+            postIsolated(down, to: ownerPID) { [weak self] success in
+                guard success else { completion(false); return }
+                guard let self else { completion(false); return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                    self.postIsolated(up, to: ownerPID, completion: completion)
+                }
             }
             return
         }
@@ -75,11 +79,30 @@ final class MenuBarItemActivator {
               let up = CGEvent(mouseEventSource: source, mouseType: .rightMouseUp, mouseCursorPosition: point, mouseButton: .right) else { completion(false); return }
         down.setIntegerValueField(.mouseEventClickState, value: 1)
         up.setIntegerValueField(.mouseEventClickState, value: 1)
-        down.post(tap: .cgSessionEventTap)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-            up.post(tap: .cgSessionEventTap)
-            completion(true)
+        postIsolated(down, to: item.ownerPID) { [weak self] success in
+            guard success else { completion(false); return }
+            guard let self else { completion(false); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                self.postIsolated(up, to: item.ownerPID, completion: completion)
+            }
         }
+    }
+
+    private func postIsolated(_ event: CGEvent, to pid: pid_t?, completion: @escaping (Bool) -> Void) {
+        guard let pid else { completion(false); return }
+        var relay: MenuBarEventRelay?
+        relay = MenuBarEventRelay(event: event, pid: pid) { [weak self] success in
+            if let relay {
+                self?.relays.removeAll { $0 === relay }
+            }
+            completion(success)
+        }
+        guard let relay else {
+            completion(false)
+            return
+        }
+        relays.append(relay)
+        relay.start()
     }
 
     private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource, mouseButton: CGMouseButton) -> CGEvent? {

@@ -100,23 +100,15 @@ final class MenuBarLayoutManager {
     /// Quartz screen coordinates captured before any synthetic menu-bar event.
     func currentPointerLocation() -> CGPoint? { CGEvent(source: nil)?.location }
 
-    /// Reassociates WindowServer with the real pointer after a synthetic click.
+    /// Kept as a compatibility hook for older activation call sites.
     ///
-    /// The order is intentional: Quartz documents that warping does not emit a
-    /// mouse event, and associating before the warp can leave the hardware mouse
-    /// and cursor in the disconnected state on recent macOS releases. Warp
-    /// first, associate afterwards, then send a zero-delta move so other apps
-    /// recompute hover/cursor tracking immediately.
+    /// Synthetic menu-bar events are now consumed by `MenuBarEventRelay` after
+    /// they are forwarded to the target process. There is therefore no global
+    /// cursor state to repair, and warping or posting a synthetic mouse-move
+    /// here would reintroduce the hover and cursor flicker this manager avoids.
     func restorePointerLocation(_ point: CGPoint?) {
-        guard let point, Self.isValidPointerLocation(point) else { return }
-        _ = CGWarpMouseCursorPosition(point)
-        _ = CGAssociateMouseAndMouseCursorPosition(1)
-        guard let source = CGEventSource(stateID: .hidSystemState),
-              let move = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left) else { return }
-        move.setIntegerValueField(.mouseEventDeltaX, value: 0)
-        move.setIntegerValueField(.mouseEventDeltaY, value: 0)
-        move.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
-        move.post(tap: .cgSessionEventTap)
+        // Intentionally empty. Do not call CGWarpMouseCursorPosition,
+        // CGAssociateMouseAndMouseCursorPosition, or post mouseMoved events.
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
@@ -241,13 +233,11 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    if success, let physicalPointerLocation, Self.isValidPointerLocation(physicalPointerLocation) {
-                        // The synthetic drag changes WindowServer's logical
-                        // pointer location to the menu-bar target. Restore the
-                        // last real hardware location without moving the user-visible cursor.
-                        self?.restorePointerLocation(physicalPointerLocation)
-                    }
-                self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
+                    // The relay consumes the synthetic event after forwarding
+                    // it to the owner process. Do not warp or otherwise
+                    // restore the global pointer here; that reintroduces the
+                    // stale-hover state this manager is designed to avoid.
+                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
                 }
             }
         }
@@ -344,14 +334,6 @@ final class MenuBarLayoutManager {
         var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
         return displays.prefix(Int(count)).map(CGDisplayBounds)
-    }
-
-    private static func isValidPointerLocation(_ point: CGPoint) -> Bool {
-        guard point.x.isFinite, point.y.isFinite, point.x != 0 || point.y != 0 else { return false }
-        return NSScreen.screens.contains { screen in
-            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
-            return CGDisplayBounds(CGDirectDisplayID(number.uint32Value)).contains(point)
-        }
     }
 
     private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] { Self.fetchWindowRecords() }

@@ -19,17 +19,28 @@ final class MenuBarEventRelay {
         self.completion = completion
 
         let info = Unmanaged.passUnretained(self).toOpaque()
-        guard let pidTap = CGEvent.tapCreateForPid(
+        // Some protected macOS owners (notably Control Center) reject a
+        // process-level event tap even when the caller has Accessibility
+        // permission. Keep the session tap in that case and inject the event
+        // directly into it; the session callback still forwards only to the
+        // requested PID and consumes the global copy.
+        let pidTap = CGEvent.tapCreateForPid(
             pid: pid,
             place: .tailAppendEventTap,
             options: .defaultTap,
             eventsOfInterest: 1 << CGEventType.null.rawValue,
             callback: Self.callback,
             userInfo: info
-        ), let sessionTap = CGEvent.tapCreate(
+        )
+        guard let sessionTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .tailAppendEventTap,
-            options: .listenOnly,
+            // Consume the injected event after forwarding the exact event to
+            // the target process. Returning the event from a listen-only tap
+            // lets it continue through WindowServer and makes every other app
+            // observe a synthetic mouse down/up at the menu-bar coordinate.
+            // That leaves hover and button state stale in unrelated apps.
+            options: .defaultTap,
             eventsOfInterest: 1 << event.type.rawValue,
             callback: Self.callback,
             userInfo: info
@@ -37,24 +48,34 @@ final class MenuBarEventRelay {
 
         self.pidTap = pidTap
         self.sessionTap = sessionTap
-        pidSource = CFMachPortCreateRunLoopSource(nil, pidTap, 0)
+        if let pidTap {
+            pidSource = CFMachPortCreateRunLoopSource(nil, pidTap, 0)
+        }
         sessionSource = CFMachPortCreateRunLoopSource(nil, sessionTap, 0)
     }
 
     func start() {
-        guard let pidTap, let sessionTap, let pidSource, let sessionSource else {
+        guard let sessionTap, let sessionSource else {
             finish(false)
             return
         }
         let runLoop = CFRunLoopGetMain()
-        CFRunLoopAddSource(runLoop, pidSource, .commonModes)
+        if let pidSource {
+            CFRunLoopAddSource(runLoop, pidSource, .commonModes)
+        }
         CFRunLoopAddSource(runLoop, sessionSource, .commonModes)
-        CGEvent.tapEnable(tap: pidTap, enable: true)
+        if let pidTap {
+            CGEvent.tapEnable(tap: pidTap, enable: true)
+        }
         CGEvent.tapEnable(tap: sessionTap, enable: true)
 
-        let nullEvent = CGEvent(source: nil)!
-        nullEvent.setIntegerValueField(.eventSourceUserData, value: nullMarker)
-        nullEvent.postToPid(pid)
+        if pidTap != nil {
+            let nullEvent = CGEvent(source: nil)!
+            nullEvent.setIntegerValueField(.eventSourceUserData, value: nullMarker)
+            nullEvent.postToPid(pid)
+        } else {
+            event.post(tap: .cgSessionEventTap)
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in self?.finish(false) }
     }
 
@@ -71,6 +92,7 @@ final class MenuBarEventRelay {
             if let sessionTap = relay.sessionTap { CGEvent.tapEnable(tap: sessionTap, enable: false) }
             relay.event.postToPid(relay.pid)
             DispatchQueue.main.async { relay.finish(true) }
+            return nil
         }
         return Unmanaged.passUnretained(incoming)
     }
