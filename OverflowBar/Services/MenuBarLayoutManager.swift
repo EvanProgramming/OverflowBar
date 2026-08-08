@@ -218,13 +218,23 @@ final class MenuBarLayoutManager {
         // WindowServer location still matches the real hardware pointer,
         // including when the user clicked inside OverflowBar itself.
         let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location
-        let eventPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: currentFrame(windowID: targetWindowID) ?? .zero)
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
-              let source = eventSource(for: ownerPID),
-              let down = targetedEvent(type: .leftMouseDown, point: eventPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
-              let up = targetedEvent(type: .leftMouseUp, point: eventPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
+              let source = eventSource(for: ownerPID) else {
+            completion(false)
+            return
+        }
+        let startPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
+        // WindowServer needs the actual off-screen staging coordinate for the
+        // drop side of a hide drag. That coordinate may temporarily clamp the
+        // logical pointer; restoreSyntheticPointer() below repairs it after
+        // the transaction completes.
+        let destinationPoint = placement == .left
+            ? CGPoint(x: targetFrame.minX, y: targetFrame.midY)
+            : CGPoint(x: targetFrame.maxX, y: targetFrame.midY)
+        guard let down = targetedEvent(type: .leftMouseDown, point: startPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
+              let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
             completion(false)
             return
         }
