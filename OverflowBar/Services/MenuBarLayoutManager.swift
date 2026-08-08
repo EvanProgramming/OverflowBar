@@ -218,12 +218,13 @@ final class MenuBarLayoutManager {
         // WindowServer location still matches the real hardware pointer,
         // including when the user clicked inside OverflowBar itself.
         let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location
+        let eventPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: currentFrame(windowID: targetWindowID) ?? .zero)
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
               currentFrame(windowID: itemWindowID) != nil,
               let targetFrame = currentFrame(windowID: targetWindowID),
               let source = eventSource(for: ownerPID),
-              let down = targetedEvent(type: .leftMouseDown, point: CGPoint(x: 20_000, y: 20_000), windowID: itemWindowID, pid: ownerPID, source: source, command: true),
-              let up = targetedEvent(type: .leftMouseUp, point: CGPoint(x: placement == .left ? targetFrame.minX : targetFrame.maxX, y: targetFrame.midY), windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
+              let down = targetedEvent(type: .leftMouseDown, point: eventPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
+              let up = targetedEvent(type: .leftMouseUp, point: eventPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
             completion(false)
             return
         }
@@ -233,10 +234,15 @@ final class MenuBarLayoutManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    // The relay consumes the synthetic event after forwarding
-                    // it to the owner process. Do not warp or otherwise
-                    // restore the global pointer here; that reintroduces the
-                    // stale-hover state this manager is designed to avoid.
+                    // A hide drag still has to target the off-screen staging
+                    // window, so WindowServer may clamp its logical pointer
+                    // while processing the event. Restore the pointer only
+                    // after the hide transaction (never during reveal), and
+                    // only to the location captured immediately before this
+                    // transaction began.
+                    if placement == .left {
+                        self?.restoreSyntheticPointer(physicalPointerLocation)
+                    }
                     self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
                 }
             }
@@ -264,6 +270,9 @@ final class MenuBarLayoutManager {
                 self.move(item, relativeTo: targetWindowID, placement: placement, attempt: attempt + 1, restoreCursorLocation: restoreCursorLocation, completion: completion)
             } else {
                 self.logger.info("Move verification window \(itemWindowID, privacy: .public) failed")
+                if placement == .left {
+                    self.restoreSyntheticPointer(restoreCursorLocation)
+                }
                 completion(false)
             }
         }
@@ -289,6 +298,29 @@ final class MenuBarLayoutManager {
             ? .hidSystemState
             : .privateState
         return CGEventSource(stateID: state)
+    }
+
+    /// All synthetic drag events must carry an on-screen cursor coordinate.
+    /// The target window fields select the status-item source/destination;
+    /// using an off-screen point (20,000 or a negative hidden-section frame)
+    /// makes WindowServer clamp the logical pointer to the top-left corner.
+    private func safeEventPoint(preferred: CGPoint?, fallback: CGRect) -> CGPoint {
+        let displays = Self.activeDisplayBounds()
+        if let preferred, displays.contains(where: { $0.contains(preferred) }) {
+            return preferred
+        }
+        if let display = displays.first {
+            let x = min(max(fallback.midX, display.minX + 8), display.maxX - 8)
+            let y = min(max(fallback.midY, display.minY + 8), display.maxY - 8)
+            return CGPoint(x: x, y: y)
+        }
+        return CGPoint(x: 8, y: 8)
+    }
+
+    private func restoreSyntheticPointer(_ point: CGPoint?) {
+        guard let point, Self.activeDisplayBounds().contains(where: { $0.contains(point) }) else { return }
+        CGWarpMouseCursorPosition(point)
+        CGAssociateMouseAndMouseCursorPosition(1)
     }
 
     private func targetedEvent(type: CGEventType, point: CGPoint, windowID: CGWindowID, pid: pid_t, source: CGEventSource, command: Bool) -> CGEvent? {

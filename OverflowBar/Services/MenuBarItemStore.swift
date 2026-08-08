@@ -25,7 +25,6 @@ final class MenuBarItemStore: ObservableObject {
     private var menuDismissMonitor: Any?
     private var transientDismissCheck: DispatchWorkItem?
     private var pendingRehideItem: MenuBarItem?
-    private var pendingRehidePointer: CGPoint?
     // NSMenu can nest tracking sessions (for example, a submenu opened from
     // a status-item menu). Keep a depth instead of a Boolean so an inner
     // didEndTracking notification cannot make us rehide while the parent
@@ -462,7 +461,7 @@ final class MenuBarItemStore: ObservableObject {
                     self.retryActivation(item, mouseButton: .left, retryCount: retryCount, message: "Unable to activate \(item.tooltip).")
                     return
                 }
-                self.rehideAfterNextUserClick(item, restoreCursorLocation: nil)
+                self.rehideAfterNextUserClick(item)
                 self.finishActivation()
             }
             return
@@ -524,7 +523,7 @@ final class MenuBarItemStore: ObservableObject {
                    self.itemUsesAccessibility(item),
                    self.activator.activateDirectly(item)
                     || self.activator.activateViaAccessibilityHitTest(item) {
-                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
+                    self.rehideAfterNextUserClick(item)
                     self.finishActivation()
                     return
                 }
@@ -536,7 +535,7 @@ final class MenuBarItemStore: ObservableObject {
                         self.retryActivation(item, mouseButton: mouseButton, retryCount: retryCount, message: "Unable to activate \(item.tooltip).")
                         return
                     }
-                    self.rehideAfterNextUserClick(item, restoreCursorLocation: restoreCursorLocation)
+                    self.rehideAfterNextUserClick(item)
                     self.finishActivation()
                 }
             }
@@ -564,9 +563,8 @@ final class MenuBarItemStore: ObservableObject {
         item.windowID == nil
     }
 
-    private func rehideAfterNextUserClick(_ item: MenuBarItem, restoreCursorLocation: CGPoint?) {
+    private func rehideAfterNextUserClick(_ item: MenuBarItem) {
         pendingRehideItem = item
-        pendingRehidePointer = restoreCursorLocation
 
         // Popovers do not emit NSMenu tracking notifications. Install this
         // monitor after the originating click has completed. While an NSMenu
@@ -609,9 +607,7 @@ final class MenuBarItemStore: ObservableObject {
 
     private func rehidePendingItem() {
         guard let item = pendingRehideItem else { return }
-        let pointer = pendingRehidePointer
         pendingRehideItem = nil
-        pendingRehidePointer = nil
         rehideWorkItem?.cancel()
         rehideWorkItem = nil
         transientDismissCheck?.cancel()
@@ -620,7 +616,10 @@ final class MenuBarItemStore: ObservableObject {
             NSEvent.removeMonitor(menuDismissMonitor)
             self.menuDismissMonitor = nil
         }
-        layoutManager.rehide(item, restoreCursorLocation: pointer)
+        // Capture the pointer inside the actual menu/popover interaction. The
+        // original panel position is stale by this point and restoring it
+        // would reopen hover UI or leave other apps with a false hit target.
+        layoutManager.rehide(item, restoreCursorLocation: nil)
     }
 
     private func cancelPendingRehide() {
@@ -633,7 +632,6 @@ final class MenuBarItemStore: ObservableObject {
             self.menuDismissMonitor = nil
         }
         pendingRehideItem = nil
-        pendingRehidePointer = nil
     }
 
     /// Control Center's menus are foreign-process windows and never produce
