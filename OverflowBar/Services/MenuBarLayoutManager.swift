@@ -340,30 +340,24 @@ final class MenuBarLayoutManager {
             return
         }
         let startPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
-        // WindowServer needs the actual staging coordinate for the drop side
-        // of a hide drag. Temporarily disassociate the hardware pointer so
-        // that logical destination cannot move the visible cursor.
-        let destinationPoint = placement == .left
-            ? CGPoint(x: targetFrame.minX, y: targetFrame.midY)
-            : CGPoint(x: targetFrame.maxX, y: targetFrame.midY)
-        if placement == .left { CGAssociateMouseAndMouseCursorPosition(0) }
+        // Keep both event coordinates on an active display. The target window
+        // fields below select the status-item source/destination; using the
+        // hidden staging window's off-screen frame as the mouse-up coordinate
+        // makes WindowServer clamp the real pointer to the top-left corner.
+        // That clamp is visible to the user even when the event is later
+        // relayed to the owning process.
+        let destinationPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
         guard let down = targetedEvent(type: .leftMouseDown, point: startPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
               let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
-            if placement == .left { CGAssociateMouseAndMouseCursorPosition(1) }
             completion(false)
             return
         }
         relay(down, to: ownerPID) { [weak self] success in
             self?.logger.info("Mouse-down relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-            guard success else {
-                if placement == .left { CGAssociateMouseAndMouseCursorPosition(1) }
-                completion(false)
-                return
-            }
+            guard success else { completion(false); return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
                 self?.relay(up, to: ownerPID) { success in
                     self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    if placement == .left { CGAssociateMouseAndMouseCursorPosition(1) }
                     self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
                 }
             }
