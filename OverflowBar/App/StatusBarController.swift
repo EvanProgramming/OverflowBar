@@ -15,12 +15,8 @@ final class StatusBarController: NSObject {
         let defaults = UserDefaults.standard
         let arrowName = "OverflowBarControlItem"
         let hiddenName = "OverflowBarHiddenSection"
-        // Migrate any positions left by earlier builds. Position 0 is the
-        // right-most app-owned slot; the expanding hidden delimiter is slot 1.
-        defaults.set(0.0, forKey: "NSStatusItem Preferred Position \(arrowName)")
-        defaults.set(1.0, forKey: "NSStatusItem Preferred Position \(hiddenName)")
-        defaults.set(true, forKey: "NSStatusItem Visible \(arrowName)")
-        defaults.set(true, forKey: "NSStatusItem Visible \(hiddenName)")
+        // Keep stable autosave identifiers, but let macOS 26's Control Center
+        // host choose the initial slot instead of forcing legacy positions.
         statusItem = NSStatusBar.system.statusItem(withLength: 0)
         statusItem.autosaveName = arrowName
         hiddenSectionItem = NSStatusBar.system.statusItem(withLength: 0)
@@ -91,6 +87,7 @@ final class StatusBarController: NSObject {
         if !atMenuBar {
             pointerIsAtMenuBar = false
             hoverRevealSuppressedUntilPointerLeaves = false
+            panelController.close()
             return
         }
         guard !hoverRevealSuppressedUntilPointerLeaves else { return }
@@ -173,7 +170,32 @@ extension NSStatusBarButton {
                 )
             }
         }
-        guard let window else { return nil }
-        return window.convertToScreen(convert(bounds, to: nil))
+        if let window {
+            let frame = window.convertToScreen(convert(bounds, to: nil))
+            if let screen = NSScreen.screens.first(where: {
+                $0.frame.insetBy(dx: -2, dy: -2).contains(CGPoint(x: frame.midX, y: frame.midY))
+            }),
+               frame.width > 0,
+               frame.height > 0,
+               frame.midY >= screen.frame.maxY - NSStatusBar.system.thickness - 8 {
+                return frame
+            }
+        }
+
+        // On macOS 26 the hosted status-item window can have a generic name
+        // and an unusable zero-origin frame. During hover/click activation
+        // the pointer is the reliable anchor; never allow the panel to fall
+        // back to the screen's lower-left corner.
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }),
+              mouse.y >= screen.frame.maxY - NSStatusBar.system.thickness - 8 else {
+            return nil
+        }
+        return CGRect(
+            x: mouse.x - 1,
+            y: screen.frame.maxY - NSStatusBar.system.thickness,
+            width: 2,
+            height: NSStatusBar.system.thickness
+        )
     }
 }
