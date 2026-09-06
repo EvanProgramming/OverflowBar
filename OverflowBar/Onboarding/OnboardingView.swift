@@ -170,7 +170,8 @@ struct OnboardingView: View {
                     detail: "Captures only the small icon regions used in the overflow row.",
                     isGranted: permissions.screenRecordingGranted,
                     request: permissions.requestScreenRecording,
-                    openSettings: permissions.openScreenRecordingSettings
+                    openSettings: permissions.openScreenRecordingSettings,
+                    requestTitle: "Open Settings"
                 )
             }
             .frame(maxWidth: 610)
@@ -367,6 +368,7 @@ private struct PermissionCard: View {
     let isGranted: Bool
     let request: () -> Void
     let openSettings: () -> Void
+    var requestTitle = "Allow"
 
     var body: some View {
         HStack(spacing: 14) {
@@ -392,7 +394,7 @@ private struct PermissionCard: View {
                     .font(.title2)
                     .foregroundStyle(.green)
             } else {
-                Button("Allow", action: request).buttonStyle(.borderedProminent)
+                Button(requestTitle, action: request).buttonStyle(.borderedProminent)
                 Button(action: openSettings) { Image(systemName: "gear") }
                     .buttonStyle(.bordered)
                     .help("Open System Settings")

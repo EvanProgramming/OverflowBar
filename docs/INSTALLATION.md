@@ -3,7 +3,7 @@
 ## Requirements
 
 - macOS 15 Sequoia or later
-- Apple Silicon for the downloadable DMG and Homebrew Cask
+- Apple Silicon or Intel for the downloadable DMG and Homebrew Cask
 - Accessibility and Screen Recording permissions for the full feature set
 
 ## Recommended: Install the DMG
@@ -31,7 +31,7 @@ brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/Overflow
 brew install --cask EvanProgramming/overflowbar/overflowbar
 ```
 
-This installs the same Apple Silicon DMG published through GitHub Releases. The
+This installs the same universal DMG published through GitHub Releases. The
 current community build is ad-hoc signed, so macOS may require a one-time
 Control-click → **Open** confirmation. Homebrew cannot grant Accessibility or
 Screen Recording permissions; complete those steps in OverflowBar's onboarding.
@@ -82,4 +82,15 @@ Optional preference cleanup:
 
 ```bash
 defaults delete com.overflowbar.app
+defaults delete com.overflowbar.mac26.compat
+defaults delete com.overflowbar.mac26.v5
+defaults delete com.overflowbar.mac26.v4
+defaults delete com.overflowbar.mac26.v3
+defaults delete com.overflowbar.mac26.v2
 ```
+
+The compatibility build uses `com.overflowbar.mac26.compat` so macOS 26 does not
+reuse a stale Control Center host registration from an older build. After an
+update, re-enable Accessibility and Screen Recording for the new OverflowBar
+entry if System Settings lists it separately; user selections are migrated,
+but old status-item placement records are intentionally not.

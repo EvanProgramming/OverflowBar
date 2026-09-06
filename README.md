@@ -83,7 +83,7 @@ For component details and data flow, read [Architecture](docs/ARCHITECTURE.md).
 ## Requirements
 
 - macOS 15 Sequoia or later
-- Apple Silicon for the downloadable community DMG
+- Apple Silicon or Intel for the downloadable community DMG
 - Accessibility permission for discovery, activation, and managed layout
 - Screen Recording permission for live icon capture
 
@@ -100,7 +100,7 @@ xcodebuild \
   build
 ```
 
-Create an Apple Silicon release DMG with:
+Create a universal Apple Silicon + Intel release DMG with:
 
 ```bash
 ./scripts/create-dmg.sh

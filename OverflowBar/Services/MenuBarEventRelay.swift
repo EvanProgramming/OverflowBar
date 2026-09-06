@@ -20,17 +20,12 @@ final class MenuBarEventRelay {
         self.completion = completion
 
         let info = Unmanaged.passUnretained(self).toOpaque()
-        // Some protected macOS owners (notably Control Center) reject a
-        // process-level event tap even when the caller has Accessibility
-        // permission. Keep the session tap in that case and inject the event
-        // directly into it; the session callback still forwards only to the
-        // requested PID and consumes the global copy.
-        // Control Center advertises a process tap even though it does not
-        // deliver the null event used to synchronize that tap. Treat it as a
-        // protected owner up front; otherwise the relay waits for a callback
-        // that can never arrive and the subsequent drag/click is dropped.
-        let isProtectedOwner = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
-        let pidTap = isProtectedOwner ? nil : CGEvent.tapCreateForPid(
+        // Keep the process-level handshake for Control Center too. Its
+        // status-item host is protected, but the process tap still accepts the
+        // null barrier and is what preserves the target PID when WindowServer
+        // relays the event. Posting directly to the session tap rewrites the
+        // target to this app and silently drops the menu-bar move.
+        let pidTap = CGEvent.tapCreateForPid(
             pid: pid,
             place: .tailAppendEventTap,
             options: .defaultTap,

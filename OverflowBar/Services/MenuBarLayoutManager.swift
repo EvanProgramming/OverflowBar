@@ -4,13 +4,15 @@ import CoreGraphics
 import OSLog
 
 /// Moves status-item windows by sending WindowServer-targeted Command-drag events.
-/// The physical mouse cursor is never moved.
+/// The synthetic drag temporarily updates the system pointer, then restores it
+/// to the real pre-operation location captured before the move.
 final class MenuBarLayoutManager {
     private enum Placement { case left, right }
     private let logger = Logger(subsystem: "com.overflowbar.app", category: "layout")
     private let preferences: PreferencesStore
     private let initialWindowIDs: Set<CGWindowID>
-    private var relays: [MenuBarEventRelay] = []
+    private var controlStatusItemWindowID: CGWindowID?
+    private var hiddenStatusItemWindowID: CGWindowID?
     var onHiddenFramesChanged: (([CGRect]) -> Void)?
     init(preferences: PreferencesStore) {
         self.preferences = preferences
@@ -20,6 +22,17 @@ final class MenuBarLayoutManager {
     var isEnabled: Bool {
         get { preferences.layoutManagementEnabled }
         set { preferences.layoutManagementEnabled = newValue }
+    }
+
+    /// macOS 26 does not expose the stable autosave name as the hosted
+    /// status-window title. Keep the WindowServer IDs published by
+    /// StatusBarController so layout operations can target the two app-owned
+    /// hosts without guessing from Control Center's provisional Item-0/1
+    /// names.
+    func setStatusItemWindowIDs(control: CGWindowID?, hidden: CGWindowID?) {
+        controlStatusItemWindowID = control
+        hiddenStatusItemWindowID = hidden
+        logger.info("Published status window IDs control=\(control ?? 0, privacy: .public) hidden=\(hidden ?? 0, privacy: .public)")
     }
 
     func hide(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int = 0, completion: @escaping (Int) -> Void = { _ in }) {
@@ -57,13 +70,13 @@ final class MenuBarLayoutManager {
     private func hideAfterRestoringProtectedItems(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int, managedSystemNames: Set<String>, completion: @escaping (Int) -> Void) {
         guard isEnabled else { completion(0); return }
         guard let target = hiddenTargetWindow() else {
-            guard targetAttempt < 10 else {
+            guard targetAttempt < 3 else {
                 logger.error("Hidden-section target did not appear after bounded retries")
                 completion(0)
                 return
             }
             logger.info("Control window pending; retrying attempt \(targetAttempt + 1, privacy: .public)")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 self?.hideAfterRestoringProtectedItems(items, relativeTo: controlFrame, targetAttempt: targetAttempt + 1, managedSystemNames: managedSystemNames, completion: completion)
             }
             return
@@ -142,15 +155,11 @@ final class MenuBarLayoutManager {
     /// Quartz screen coordinates captured before any synthetic menu-bar event.
     func currentPointerLocation() -> CGPoint? { CGEvent(source: nil)?.location }
 
-    /// Kept as a compatibility hook for older activation call sites.
-    ///
-    /// Synthetic menu-bar events are now consumed by `MenuBarEventRelay` after
-    /// they are forwarded to the target process. There is therefore no global
-    /// cursor state to repair, and warping or posting a synthetic mouse-move
-    /// here would reintroduce the hover and cursor flicker this manager avoids.
+    /// Kept as a compatibility hook for older activation call sites. Move
+    /// operations restore the pointer inside `postDrag`; this method is not a
+    /// second restoration pass.
     func restorePointerLocation(_ point: CGPoint?) {
-        // Intentionally empty. Do not call CGWarpMouseCursorPosition,
-        // CGAssociateMouseAndMouseCursorPosition, or post mouseMoved events.
+        // Intentionally empty.
     }
 
     func restore(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, completion: @escaping (Int) -> Void = { _ in }) {
@@ -187,12 +196,12 @@ final class MenuBarLayoutManager {
 
     func restoreProtectedSystemItems(attempt: Int = 0, excluding excludedWindowIDs: Set<CGWindowID> = [], excludingSystemNames: Set<String> = [], completion: @escaping (Int) -> Void = { _ in }) {
         guard let target = controlTargetWindow() else {
-            guard attempt < 10 else {
+            guard attempt < 3 else {
                 logger.error("Control target unavailable while restoring protected items")
                 completion(0)
                 return
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 self?.restoreProtectedSystemItems(attempt: attempt + 1, excluding: excludedWindowIDs, excludingSystemNames: excludingSystemNames, completion: completion)
             }
             return
@@ -333,34 +342,36 @@ final class MenuBarLayoutManager {
         // including when the user clicked inside OverflowBar itself.
         let physicalPointerLocation = restoreCursorLocation ?? CGEvent(source: nil)?.location
         guard let itemWindowID = item.windowID, let ownerPID = item.ownerPID,
-              currentFrame(windowID: itemWindowID) != nil,
+              let itemFrame = currentFrame(windowID: itemWindowID),
               let targetFrame = currentFrame(windowID: targetWindowID),
               let source = eventSource(for: ownerPID) else {
             completion(false)
             return
         }
-        let startPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
-        // Keep both event coordinates on an active display. The target window
-        // fields below select the status-item source/destination; using the
-        // hidden staging window's off-screen frame as the mouse-up coordinate
-        // makes WindowServer clamp the real pointer to the top-left corner.
-        // That clamp is visible to the user even when the event is later
-        // relayed to the owning process.
-        let destinationPoint = safeEventPoint(preferred: physicalPointerLocation, fallback: targetFrame)
+        // Control Center requires the synthetic drag coordinates to start on
+        // the visible source item. The WindowServer window fields identify
+        // the source/destination; keeping the actual points on an active
+        // display means a hidden off-screen target cannot clamp the user's
+        // hardware pointer. On reveal the hidden source is invalid, so the
+        // target's visible frame becomes the safe fallback for both events.
+        let itemPoint = CGPoint(x: itemFrame.midX, y: itemFrame.midY)
+        let startPoint = safeEventPoint(preferred: itemPoint, fallback: targetFrame)
+        let destinationPoint = destinationPoint(for: placement, itemFrame: itemFrame, targetFrame: targetFrame)
         guard let down = targetedEvent(type: .leftMouseDown, point: startPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
-              let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: false) else {
+              let dragged = targetedEvent(type: .leftMouseDragged, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: true),
+              let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: true) else {
             completion(false)
             return
         }
-        relay(down, to: ownerPID) { [weak self] success in
-            self?.logger.info("Mouse-down relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-            guard success else { completion(false); return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                self?.relay(up, to: ownerPID) { success in
-                    self?.logger.info("Mouse-up relay window \(itemWindowID, privacy: .public) success=\(success, privacy: .public)")
-                    self?.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
-                }
-            }
+        postDrag(
+            down: down,
+            dragged: dragged,
+            up: up,
+            ownerPID: ownerPID,
+            restoreCursorLocation: physicalPointerLocation
+        ) { [weak self] success in
+            guard let self, success else { completion(false); return }
+            self.verifyMove(item, relativeTo: targetWindowID, placement: placement, attempt: attempt, check: 0, restoreCursorLocation: physicalPointerLocation, completion: completion)
         }
     }
 
@@ -390,19 +401,39 @@ final class MenuBarLayoutManager {
         }
     }
 
-    private func relay(_ event: CGEvent, to pid: pid_t, completion: @escaping (Bool) -> Void) {
-        var relay: MenuBarEventRelay?
-        relay = MenuBarEventRelay(event: event, pid: pid) { [weak self] success in
-            if let relay { self?.relays.removeAll { $0 === relay } }
-            completion(success)
+    /// Posts the complete drag gesture through WindowServer. A down/up pair
+    /// alone is treated as a click by macOS 26; the dragged event is required
+    /// for Control Center's hosted status items. The gesture uses one bounded
+    /// jump instead of an off-screen or multi-step path, which avoids the
+    /// notch dead-zone while keeping every coordinate on an active display.
+    private func postDrag(
+        down: CGEvent,
+        dragged: CGEvent,
+        up: CGEvent,
+        ownerPID: pid_t,
+        restoreCursorLocation: CGPoint?,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let tap: CGEventTapLocation = isControlCenter(ownerPID) ? .cghidEventTap : .cgSessionEventTap
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            down.post(tap: tap)
+            usleep(80_000)
+            dragged.post(tap: tap)
+            usleep(80_000)
+            up.post(tap: tap)
+            usleep(140_000)
+            if let restoreCursorLocation,
+               Self.activeDisplayBounds().contains(where: { $0.contains(restoreCursorLocation) }),
+               let restore = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: restoreCursorLocation, mouseButton: .left) {
+                // This is the real pointer location captured before the
+                // operation, never a synthetic off-screen or test coordinate.
+                restore.post(tap: .cghidEventTap)
+            }
+            DispatchQueue.main.async {
+                self?.logger.info("Posted Command-drag window event via \(tap == .cghidEventTap ? "hid" : "session", privacy: .public)")
+                completion(true)
+            }
         }
-        guard let relay else {
-            logger.error("Unable to create event relay for pid \(pid, privacy: .public)")
-            completion(false)
-            return
-        }
-        relays.append(relay)
-        relay.start()
     }
 
     private func eventSource(for pid: pid_t) -> CGEventSource? {
@@ -410,6 +441,27 @@ final class MenuBarLayoutManager {
             ? .hidSystemState
             : .privateState
         return CGEventSource(stateID: state)
+    }
+
+    private func isControlCenter(_ pid: pid_t) -> Bool {
+        NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
+    }
+
+    private func destinationPoint(for placement: Placement, itemFrame: CGRect, targetFrame: CGRect) -> CGPoint {
+        let x: CGFloat
+        switch placement {
+        case .left:
+            // Prefer the left quarter of the target. For a bounded hidden
+            // lane this point remains on-screen and is unambiguously before
+            // the lane midpoint, even when the lane starts off-screen.
+            let quarter = targetFrame.minX + targetFrame.width * 0.25
+            x = min(quarter, targetFrame.midX - max(2, targetFrame.width * 0.05))
+        case .right:
+            // Drop just beyond the visible control item. Clamp below in
+            // `safeEventPoint` if the control item is near a display edge.
+            x = targetFrame.maxX + max(2, min(itemFrame.width * 0.25, 8))
+        }
+        return safeEventPoint(preferred: CGPoint(x: x, y: targetFrame.midY), fallback: targetFrame)
     }
 
     /// All synthetic drag events must carry an on-screen cursor coordinate.
@@ -432,10 +484,10 @@ final class MenuBarLayoutManager {
     private func targetedEvent(type: CGEventType, point: CGPoint, windowID: CGWindowID, pid: pid_t, source: CGEventSource, command: Bool) -> CGEvent? {
         guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left) else { return nil }
         event.flags = command ? .maskCommand : []
-        // WindowServer rejects the target-PID field for Control Center's
-        // hosted status-item scenes. The window ID is sufficient for that
-        // protected owner; keep the PID field for ordinary app relays.
-        if NSRunningApplication(processIdentifier: pid)?.bundleIdentifier != "com.apple.controlcenter" {
+        // Direct HID posting is the reliable path for macOS 26's protected
+        // Control Center host. Supplying an event target PID makes WindowServer
+        // drop the hosted drag, so retain that field only for ordinary owners.
+        if !isControlCenter(pid) {
             event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
         }
         event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
@@ -447,24 +499,30 @@ final class MenuBarLayoutManager {
 
     private func controlTargetWindow() -> (id: CGWindowID, frame: CGRect)? {
         let records = windowRecords()
+        if let controlStatusItemWindowID,
+           let control = records.first(where: { $0.id == controlStatusItemWindowID }) {
+            return (control.id, control.frame)
+        }
         if let overflowBar = records.first(where: { $0.title == "OverflowBarControlItem" }) {
             return (overflowBar.id, overflowBar.frame)
         }
-        if let newlyHostedStatusItem = records
-            .filter({ !initialWindowIDs.contains($0.id) && $0.frame.width >= 30 && $0.frame.width <= 44 })
-            .max(by: { $0.id < $1.id }) {
-            return (newlyHostedStatusItem.id, newlyHostedStatusItem.frame)
-        }
-        return records.first(where: { $0.pid == getpid() }).map { ($0.id, $0.frame) }
+        return records
+            .filter { $0.pid == getpid() && $0.frame.width <= 100 && $0.frame.height > 1 }
+            .min(by: { $0.id < $1.id })
+            .map { ($0.id, $0.frame) }
     }
 
     private func hiddenTargetWindow() -> (id: CGWindowID, frame: CGRect)? {
         let records = windowRecords()
+        if let hiddenStatusItemWindowID,
+           let hidden = records.first(where: { $0.id == hiddenStatusItemWindowID }) {
+            return (hidden.id, hidden.frame)
+        }
         if let hidden = records.first(where: { $0.title == "OverflowBarHiddenSection" }) {
             return (hidden.id, hidden.frame)
         }
         return records
-            .filter { !initialWindowIDs.contains($0.id) && $0.frame.width > 1_000 }
+            .filter { $0.pid == getpid() && !initialWindowIDs.contains($0.id) && $0.frame.width > 1_000 }
             .max(by: { $0.frame.width < $1.frame.width })
             .map { ($0.id, $0.frame) }
     }
@@ -496,7 +554,7 @@ final class MenuBarLayoutManager {
     private func windowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] { Self.fetchWindowRecords() }
 
     private static func fetchWindowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] {
-        let list = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+        let list = MenuBarWindowServer.windowInfo()
         return list.compactMap { info -> (id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)? in
             guard (info[kCGWindowLayer as String] as? Int) == 25,
                   let id = info[kCGWindowNumber as String] as? Int,
@@ -509,7 +567,11 @@ final class MenuBarLayoutManager {
             // `frame.minY == 0` drops every real status-item window. Keep the
             // layout path aligned with the scanner's display-aware geometry
             // check, while still retaining offscreen hidden-section windows.
-            guard Self.isMenuBarWindowFrame(frame) else { return nil }
+            // AppKit's macOS 26 hosted status windows can briefly report a
+            // provisional frame that does not pass the global display check;
+            // retain only our own layer-25 windows in that case so the IDs
+            // published by StatusBarController remain usable during startup.
+            guard pid_t(pid) == getpid() || Self.isMenuBarWindowFrame(frame) else { return nil }
             return (CGWindowID(id), pid_t(pid), info[kCGWindowName as String] as? String ?? "", info[kCGWindowOwnerName as String] as? String ?? "", frame)
         }
     }

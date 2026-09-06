@@ -5,6 +5,12 @@ import ApplicationServices
 /// per-process Accessibility IPC.
 final class MenuBarScanner {
     private let excludedTitles = Set(["OverflowBarControlItem", "OverflowBarHiddenSection"])
+    private var ownedStatusWindowIDs: Set<CGWindowID> = []
+
+    func setOwnedStatusWindowIDs(_ windowIDs: Set<CGWindowID>) {
+        ownedStatusWindowIDs = windowIDs
+    }
+
     func scan(selectedIDs: Set<String>) -> [MenuBarItem] {
         let windowItems = scanWindowBackedItems(selectedIDs: selectedIDs)
         // Sequoia exposes a number of third-party status items through the
@@ -95,14 +101,13 @@ final class MenuBarScanner {
     private func scanWindowBackedItems(selectedIDs: Set<String>) -> [MenuBarItem] {
         // Hidden-section items are deliberately moved offscreen. They must
         // remain in the settings and overflow panel when either is refreshed.
-        let options: CGWindowListOption = [.excludeDesktopElements]
-        let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+        let windows = MenuBarWindowServer.windowInfo()
         let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, ownerKey: String, appIcon: NSImage?, frame: CGRect)] = windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                   let identifier = window[kCGWindowNumber as String] as? Int,
                   let ownerPID = window[kCGWindowOwnerPID as String] as? Int else { return nil }
-            guard ownerPID != Int(getpid()) else { return nil }
+            guard ownerPID != Int(getpid()), !ownedStatusWindowIDs.contains(CGWindowID(identifier)) else { return nil }
             let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
             guard !excludedTitles.contains(title) else { return nil }
             let owner = (window[kCGWindowOwnerName as String] as? String) ?? "System Menu Bar"
@@ -146,12 +151,13 @@ final class MenuBarScanner {
     /// removal, and process restarts without treating our own layout moves as
     /// new items.
     func windowSignature() -> Set<String> {
-        let windows = CGWindowListCopyWindowInfo(.excludeDesktopElements, kCGNullWindowID) as? [[String: Any]] ?? []
+        let windows = MenuBarWindowServer.windowInfo()
         return Set(windows.compactMap { window in
             guard (window[kCGWindowLayer as String] as? Int) == 25,
                   let identifier = window[kCGWindowNumber as String] as? Int,
                   let ownerPID = window[kCGWindowOwnerPID as String] as? Int,
                   ownerPID != Int(getpid()),
+                  !ownedStatusWindowIDs.contains(CGWindowID(identifier)),
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
             let title = (window[kCGWindowName as String] as? String) ?? ""
             guard !excludedTitles.contains(title) else { return nil }

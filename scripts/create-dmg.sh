@@ -28,7 +28,7 @@ xcodebuild \
     -scheme OverflowBar \
     -configuration Release \
     -derivedDataPath "$DERIVED_DATA" \
-    ARCHS=arm64 \
+    ARCHS='arm64 x86_64' \
     ONLY_ACTIVE_ARCH=NO \
     build
 

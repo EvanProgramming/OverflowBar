@@ -39,7 +39,10 @@ struct SettingsView: View {
                 HStack {
                     Button("Apply Hidden Layout") { store.applyLayout() }.disabled(!store.layoutManagementEnabled || store.selectedItems.isEmpty)
                     Button("Restore All Managed Icons") { store.restoreLayout() }.disabled(store.selectedItems.isEmpty)
-                    Button("Safe Reset", role: .destructive) { store.restoreAllAndDisable() }.disabled(store.selectedItems.isEmpty)
+                    // Safe Reset must remain available when persisted IDs no
+                    // longer match a live window. That is precisely the
+                    // state left by older diagnostic builds.
+                    Button("Safe Reset", role: .destructive) { store.restoreAllAndDisable() }
                 }
                 if let message = store.layoutOperationMessage {
                     Text(message).font(.caption).foregroundStyle(.secondary)

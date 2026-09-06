@@ -30,7 +30,7 @@ flowchart LR
 
 `MenuBarScanner` performs two complementary passes:
 
-1. Window-list discovery identifies layer-25 status-item windows, including items already moved offscreen.
+1. Window-list discovery identifies public layer-25 status-item windows, including items already moved offscreen. On macOS 26, Control Center-hosted status items may have no public `CGWindowID`; the scanner fails closed instead of treating a different generic item as OverflowBar's target.
 2. Accessibility traversal associates elements and press actions with matching frames.
 
 System controls receive stable identifiers and are protected from selection. OverflowBar's own status windows are excluded.
@@ -52,6 +52,8 @@ Captures happen during refresh and panel presentation, not continuously. Images 
 macOS does not provide a dedicated public API for third-party apps to reorder or hide arbitrary status items. `MenuBarLayoutManager` therefore reproduces the user-facing Command-drag interaction with WindowServer-targeted events.
 
 The expanding hidden delimiter creates an offscreen managed section to the left of the OverflowBar arrow. Every layout pass excludes live protected-system window IDs and verifies those controls before and after moving selected items.
+
+The release bundle uses a compatibility bundle identifier (`com.overflowbar.mac26.compat`) because macOS 26 can retain a blocked Control Center host for an older identifier. `PreferencesStore` migrates user selections and onboarding state from the previous identifiers while deliberately leaving stale WindowServer and status-item placement keys behind. On macOS 26, status items keep stable autosave registration names and the staging lane is registered at launch so Control Center receives both live hosts. A newly installed identity therefore receives its own Accessibility and Screen Recording authorization.
 
 ### Activation
 

@@ -18,6 +18,7 @@ final class MenuBarItemStore: ObservableObject {
     private let captureService = MenuBarCaptureService()
     private let activator = MenuBarItemActivator()
     private let layoutManager: MenuBarLayoutManager
+    private var ownedStatusWindowIDs: Set<CGWindowID> = []
     private var controlItemFrame: CGRect?
     private var rehideWorkItem: DispatchWorkItem?
     private var menuTrackingBeginObserver: NSObjectProtocol?
@@ -158,7 +159,10 @@ final class MenuBarItemStore: ObservableObject {
         let knownWindowIDsBefore = preferences.knownWindowIDs
         let deselectedBefore = preferences.deselectedItemIDs
         let selectedBefore = preferences.selectedIDs
-        let scanned = scanner.scan(selectedIDs: selectedBefore)
+        let scanned = scanner.scan(selectedIDs: selectedBefore).filter { item in
+            guard let windowID = item.windowID else { return true }
+            return !ownedStatusWindowIDs.contains(windowID)
+        }
         let currentIDs = Set(scanned.map(\.id))
         let selectableCurrentIDs = Set(scanned.filter { !$0.isProtectedSystemItem }.map(\.id))
         let currentWindowIDs = Set(scanned.compactMap(\.windowID))
@@ -337,6 +341,16 @@ final class MenuBarItemStore: ObservableObject {
 
     func updateControlItemFrame(_ frame: CGRect) { controlItemFrame = frame }
 
+    func updateStatusItemWindowIDs(control: CGWindowID?, hidden: CGWindowID?) {
+        let previousOwnedStatusWindowIDs = ownedStatusWindowIDs
+        ownedStatusWindowIDs.formUnion([control, hidden].compactMap { $0 })
+        scanner.setOwnedStatusWindowIDs(ownedStatusWindowIDs)
+        layoutManager.setStatusItemWindowIDs(control: control, hidden: hidden)
+        if ownedStatusWindowIDs != previousOwnedStatusWindowIDs, !items.isEmpty {
+            scheduleRefresh(after: 0, reason: "owned status windows changed")
+        }
+    }
+
     func setLayoutManagementEnabled(_ enabled: Bool) {
         layoutManager.isEnabled = enabled
         layoutManagementEnabled = enabled
@@ -425,7 +439,14 @@ final class MenuBarItemStore: ObservableObject {
         layoutManager.isEnabled = false
         layoutManagementEnabled = false
         onLayoutStateChanged?()
-        restoreLayout { [weak self] in self?.restoreProtectedSystemItems() }
+        restoreLayout { [weak self] in
+            guard let self else { return }
+            self.preferences.resetLayoutState()
+            self.items.forEach { $0.isSelected = false }
+            self.restoreProtectedSystemItems { [weak self] in
+                self?.refresh()
+            }
+        }
     }
 
     func prepareForTermination(completion: @escaping () -> Void) {

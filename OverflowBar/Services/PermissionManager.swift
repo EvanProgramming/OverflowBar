@@ -1,12 +1,9 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
-import ScreenCaptureKit
-import OSLog
 
 @MainActor
 final class PermissionManager: ObservableObject {
-    private let logger = Logger(subsystem: "com.overflowbar.app", category: "permissions")
     @Published private(set) var accessibilityGranted = false
     @Published private(set) var screenRecordingGranted = false
 
@@ -23,17 +20,15 @@ final class PermissionManager: ObservableObject {
     }
 
     func requestScreenRecording() {
-        Task {
-            // Explicitly ask WindowServer/TCC to register this bundle. Merely
-            // enumerating SCShareableContent can return an empty result without
-            // adding the app to the Screen Recording list on macOS 26.
-            if !CGPreflightScreenCaptureAccess() {
-                _ = CGRequestScreenCaptureAccess()
-            }
-            _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-            refresh()
-            logger.info("Screen recording granted after request: \(self.screenRecordingGranted, privacy: .public)")
-        }
+        // Permission state can be stale when a local build replaces the
+        // release identity. Calling CGRequestScreenCaptureAccess repeatedly
+        // in that state reopens the macOS authorization sheet even when
+        // System Settings still shows OverflowBar as allowed. A permission
+        // button must only open the settings pane; capture itself remains
+        // gated by the read-only preflight check in MenuBarCaptureService.
+        refresh()
+        guard !screenRecordingGranted else { return }
+        openScreenRecordingSettings()
     }
 
     func openAccessibilitySettings() { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }
