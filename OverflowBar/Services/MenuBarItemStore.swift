@@ -497,6 +497,7 @@ final class MenuBarItemStore: ObservableObject {
         activatingItemID = item.id
         lastActivationError = nil
         if mouseButton == .left, activator.activateDirectly(item) {
+            rehideAfterNextUserClick(item)
             finishActivation()
             return
         }
@@ -522,12 +523,14 @@ final class MenuBarItemStore: ObservableObject {
         // this expensive full-tree walk and use the direct per-process path
         // after their short reveal.
         if mouseButton == .left, item.axElement != nil, activateUsingFreshAccessibility(item) {
+            rehideAfterNextUserClick(item)
             finishActivation()
             return
         }
         if mouseButton == .left,
            item.windowID == nil,
            activator.activateViaAccessibilityHitTest(item) {
+            rehideAfterNextUserClick(item)
             finishActivation()
             return
         }
