@@ -9,7 +9,7 @@ final class PreferencesStore {
     private let layoutManagementKey = "layoutManagementEnabled"
     private let defaultLayoutKey = "didApplyDefaultLayoutV4"
     private let migrationKey = "didMigrateLegacyPreferencesV1"
-    private let legacyBundleIdentifiers = ["com.overflowbar.app", "com.overflowbar.mac26", "com.overflowbar.mac26.v2", "com.overflowbar.mac26.v3", "com.overflowbar.mac26.v4", "com.overflowbar.mac26.v5"]
+    private let legacyBundleIdentifiers = ["com.overflowbar.app", "com.overflowbar.mac26", "com.overflowbar.mac26.compat", "com.overflowbar.mac26.v2", "com.overflowbar.mac26.v3", "com.overflowbar.mac26.v4", "com.overflowbar.mac26.v5"]
     // UserDefaults survives replacing the application bundle. Keep completion
     // per release so a newly installed version presents its welcome/setup flow
     // instead of inheriting an unrelated older build's marker.

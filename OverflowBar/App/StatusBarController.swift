@@ -12,42 +12,35 @@ final class StatusBarController: NSObject {
     private var hoverMonitor: Any?
     private var pointerIsAtMenuBar = false
     private var hoverRevealSuppressedUntilPointerLeaves = false
+    private var hiddenSectionReflowWorkItem: DispatchWorkItem?
+    private var requestedHiddenSectionLength: CGFloat?
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
+        let defaults = UserDefaults.standard
         let arrowName = "OverflowBarControlItem"
         let hiddenName = "OverflowBarHiddenSection"
-        let defaults = UserDefaults.standard
+        // Keep the registration sequence used by the working 1.0.17 build.
+        // macOS 26 creates the Control Center host during statusItem(withLength:);
+        // registering a second item before the first host is attached makes
+        // the whole client enter Control Center's blocked list.
         defaults.set(0.0, forKey: "NSStatusItem Preferred Position \(arrowName)")
         defaults.set(1.0, forKey: "NSStatusItem Preferred Position \(hiddenName)")
-        if #unavailable(macOS 27.0) {
-            defaults.set(true, forKey: "NSStatusItem Visible \(arrowName)")
-            defaults.set(true, forKey: "NSStatusItem Visible \(hiddenName)")
-        }
-        // macOS 26 creates the Control Center host during this call. Give the
-        // visible item its final width up front; changing a zero-width hosted
-        // scene after registration can leave the scene connected but blank.
+        defaults.set(true, forKey: "NSStatusItem Visible \(arrowName)")
+        defaults.set(true, forKey: "NSStatusItem Visible \(hiddenName)")
         let visibleLength = max(NSStatusBar.system.thickness, 18)
-        let createdStatusItem = NSStatusBar.system.statusItem(withLength: visibleLength)
-        // Control Center fixes a hosted item's width when it is registered.
-        // Keep the staging lane registered from launch; changing a zero-width
-        // item later cannot recreate its WindowServer target on macOS 26.
-        let hiddenLength: CGFloat
-        if #available(macOS 27.0, *) {
-            hiddenLength = 0
-        } else if #available(macOS 26.0, *) {
-            hiddenLength = 2_000
-        } else {
-            hiddenLength = 0
-        }
-        let createdHiddenSectionItem = NSStatusBar.system.statusItem(withLength: hiddenLength)
-        createdStatusItem.autosaveName = arrowName
-        createdHiddenSectionItem.autosaveName = hiddenName
-        statusItem = createdStatusItem
-        hiddenSectionItem = createdHiddenSectionItem
+        let hiddenLength: CGFloat = {
+            if #available(macOS 27.0, *) { return 0 }
+            return 2_000
+        }()
+        statusItem = NSStatusBar.system.statusItem(withLength: visibleLength)
+        statusItem.autosaveName = arrowName
+        hiddenSectionItem = NSStatusBar.system.statusItem(withLength: hiddenLength)
+        hiddenSectionItem.autosaveName = hiddenName
         self.store = store
         self.showSettings = showSettings
         panelController = OverflowPanelController(store: store)
         super.init()
+        configureHiddenSectionItem()
         store.onImagesReady = { [weak self] in
             guard let self else { return }
             self.updateHiddenSectionLength()
@@ -67,11 +60,6 @@ final class StatusBarController: NSObject {
         button?.target = self
         button?.action = #selector(togglePanel)
         button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        hiddenSectionItem.button?.image = nil
-        // Keep the staging host a valid status-item drop target on macOS 26.
-        // A disabled host still gets a WindowServer window, but Control Center
-        // rejects Command-drag drops into it.
-        hiddenSectionItem.button?.cell?.isEnabled = true
         updateHiddenSectionLength()
         panelController.onVisibilityChanged = { [weak self] isVisible in
             self?.statusItem.button?.image = Self.statusBarImage(isExpanded: isVisible)
@@ -92,8 +80,10 @@ final class StatusBarController: NSObject {
         hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
             DispatchQueue.main.async { [weak self] in self?.handleHoverPointer() }
         }
-        DispatchQueue.main.async { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
+            self.statusHostsReady = true
+            self.updateHiddenSectionLength()
             self.publishStatusItemWindowIDs()
             self.storeControlItemFrame(for: button)
             if ProcessInfo.processInfo.arguments.contains("--show-panel") {
@@ -102,6 +92,25 @@ final class StatusBarController: NSObject {
                 }
             }
         }
+        // Control Center publishes the hosted window title/ID asynchronously;
+        // retry the read while the scene settles so layout never captures a
+        // transient zero ID.
+        for delay in [2.0, 4.0, 8.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else { return }
+                self.statusHostsReady = true
+                self.updateHiddenSectionLength()
+                self.publishStatusItemWindowIDs()
+            }
+        }
+    }
+
+    private var statusHostsReady = false
+    private func configureHiddenSectionItem() {
+        hiddenSectionItem.button?.image = nil
+        // Control Center rejects Command-drag drops into a disabled hosted
+        // status item, even though the WindowServer target still exists.
+        hiddenSectionItem.button?.cell?.isEnabled = true
     }
 
     deinit {
@@ -129,6 +138,9 @@ final class StatusBarController: NSObject {
     }
 
     func prepareForTermination() {
+        hiddenSectionReflowWorkItem?.cancel()
+        hiddenSectionReflowWorkItem = nil
+        requestedHiddenSectionLength = 0
         hiddenSectionItem.isVisible = false
         hiddenSectionItem.length = 0
     }
@@ -163,26 +175,26 @@ final class StatusBarController: NSObject {
         let expectedTitle = hidden ? "Item-1" : "Item-0"
         let windows = MenuBarWindowServer.windowInfo()
         if let exact = windows.compactMap({ info -> (id: CGWindowID, width: CGFloat)? in
-            guard (info[kCGWindowLayer as String] as? Int) == 25,
+            guard MenuBarWindowServer.isStatusItemLayer(info),
                   (info[kCGWindowOwnerName as String] as? String) == "Control Center",
                   (info[kCGWindowName as String] as? String) == exactTitle,
-                  let rawID = info[kCGWindowNumber as String] as? Int,
+                  let rawID = MenuBarWindowServer.integer(kCGWindowNumber as String, in: info),
                   rawID > 0,
                   rawID <= Int(CGWindowID.max),
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
-            return (CGWindowID(rawID), bounds["Width"] ?? 0)
+                  let bounds = MenuBarWindowServer.bounds(in: info) else { return nil }
+            return (CGWindowID(rawID), bounds.width)
         }).max(by: { $0.id < $1.id }) {
             return exact.id
         }
         let candidates = windows.compactMap { info -> (id: CGWindowID, width: CGFloat)? in
-            guard (info[kCGWindowLayer as String] as? Int) == 25,
+            guard MenuBarWindowServer.isStatusItemLayer(info),
                   (info[kCGWindowOwnerName as String] as? String) == "Control Center",
                   (info[kCGWindowName as String] as? String) == expectedTitle,
-                  let rawID = info[kCGWindowNumber as String] as? Int,
+                  let rawID = MenuBarWindowServer.integer(kCGWindowNumber as String, in: info),
                   rawID > 0,
                   rawID <= Int(CGWindowID.max),
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
-            return (CGWindowID(rawID), bounds["Width"] ?? 0)
+                  let bounds = MenuBarWindowServer.bounds(in: info) else { return nil }
+            return (CGWindowID(rawID), bounds.width)
         }
         guard !candidates.isEmpty else { return nil }
         if hidden {
@@ -198,22 +210,52 @@ final class StatusBarController: NSObject {
             // composite host. Keeping a staging item would compete with it.
             hiddenSectionItem.length = 0
             hiddenSectionItem.isVisible = false
+            requestedHiddenSectionLength = 0
             return
         }
         if #available(macOS 26.0, *) {
-            // Hosted status items keep the width they received at registration.
-            // The 2,000pt lane is intentionally always present and extends
-            // off the active display, providing a stable drag destination.
+            // Control Center fixes a hosted status item's width when it is
+            // registered. Resizing it to zero or a square staging slot leaves
+            // a permanent 38pt host on macOS 26, so keep the launch-time
+            // 2,000pt hidden lane stable.
             return
         }
         let desiredLength: CGFloat = store.isReadyForManagedLayout &&
-            store.layoutManagementEnabled && !store.selectedItems.isEmpty ? 2_000 : 0
-        guard hiddenSectionItem.length != desiredLength else { return }
-        hiddenSectionItem.isVisible = desiredLength > 0
-        hiddenSectionItem.length = desiredLength
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            self?.publishStatusItemWindowIDs()
+            store.layoutManagementEnabled && !store.selectedItems.isEmpty
+            ? 2_000
+            : 0
+        guard statusHostsReady else { return }
+        let item = hiddenSectionItem
+        guard requestedHiddenSectionLength != desiredLength else { return }
+        requestedHiddenSectionLength = desiredLength
+        hiddenSectionReflowWorkItem?.cancel()
+
+        if desiredLength == 0 {
+            item.isVisible = false
+            item.length = 0
+            publishStatusItemWindowIDs()
+            return
         }
+
+        // A hosted status item that has already been expanded is often left
+        // off-screen by Control Center when it is merely resized smaller.
+        // Hide it completely, let Control Center discard that placement, then
+        // show a compact staging slot before sending any Command-drag.
+        item.isVisible = false
+        item.length = 0
+        let work = DispatchWorkItem { [weak self] in
+            guard let self,
+                  self.requestedHiddenSectionLength == desiredLength else { return }
+            item.isVisible = true
+            item.length = desiredLength
+            self.hiddenSectionReflowWorkItem = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard self?.requestedHiddenSectionLength == desiredLength else { return }
+                self?.publishStatusItemWindowIDs()
+            }
+        }
+        hiddenSectionReflowWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
     }
 
     private var hoverRevealEnabled: Bool {
@@ -234,20 +276,15 @@ final class StatusBarController: NSObject {
 extension NSStatusBarButton {
     var overflowBarScreenFrame: CGRect? {
         let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        if let bounds = windows.first(where: {
-            guard ($0[kCGWindowLayer as String] as? Int) == 25 else { return false }
+        let matchedWindow = windows.first(where: {
+            guard MenuBarWindowServer.isStatusItemLayer($0) else { return false }
             if let windowNumber = window?.windowNumber, windowNumber > 0,
-               ($0[kCGWindowNumber as String] as? Int) == windowNumber {
+               MenuBarWindowServer.integer(kCGWindowNumber as String, in: $0) == windowNumber {
                 return true
             }
             return ($0[kCGWindowName as String] as? String) == "OverflowBarControlItem"
-        })?[kCGWindowBounds as String] as? [String: CGFloat] {
-            let coreGraphicsFrame = CGRect(
-                x: bounds["X"] ?? 0,
-                y: bounds["Y"] ?? 0,
-                width: bounds["Width"] ?? 0,
-                height: bounds["Height"] ?? 0
-            )
+        })
+        if let matchedWindow, let coreGraphicsFrame = MenuBarWindowServer.bounds(in: matchedWindow) {
             let screen = NSScreen.screens.first(where: { $0.frame.minX <= coreGraphicsFrame.midX && $0.frame.maxX >= coreGraphicsFrame.midX }) ?? NSScreen.main
             if let screen,
                coreGraphicsFrame.width > 0,

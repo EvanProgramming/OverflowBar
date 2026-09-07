@@ -53,7 +53,16 @@ macOS does not provide a dedicated public API for third-party apps to reorder or
 
 The expanding hidden delimiter creates an offscreen managed section to the left of the OverflowBar arrow. Every layout pass excludes live protected-system window IDs and verifies those controls before and after moving selected items.
 
-The release bundle uses a compatibility bundle identifier (`com.overflowbar.mac26.compat`) because macOS 26 can retain a blocked Control Center host for an older identifier. `PreferencesStore` migrates user selections and onboarding state from the previous identifiers while deliberately leaving stale WindowServer and status-item placement keys behind. On macOS 26, status items keep stable autosave registration names and the staging lane is registered at launch so Control Center receives both live hosts. A newly installed identity therefore receives its own Accessibility and Screen Recording authorization.
+The release bundle uses a fresh compatibility bundle identifier
+(`com.overflowbar.mac26.v6`) because macOS 26 can retain a blocked Control
+Center host for an older identifier. `PreferencesStore` migrates user
+selections and onboarding state from the previous identifiers while
+deliberately leaving stale WindowServer and status-item placement keys behind.
+On macOS 26, the arrow host is registered first and the staging host is
+created only after Control Center has attached the first scene; registering
+both synchronously can put both hosts in Control Center's blocked list. A
+newly installed identity therefore receives its own Accessibility and Screen
+Recording authorization.
 
 ### Activation
 

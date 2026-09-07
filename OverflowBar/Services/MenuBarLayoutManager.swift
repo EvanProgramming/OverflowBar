@@ -69,13 +69,13 @@ final class MenuBarLayoutManager {
 
     private func hideAfterRestoringProtectedItems(_ items: [MenuBarItem], relativeTo controlFrame: CGRect, targetAttempt: Int, managedSystemNames: Set<String>, completion: @escaping (Int) -> Void) {
         guard isEnabled else { completion(0); return }
-        guard let target = hiddenTargetWindow() else {
-            guard targetAttempt < 3 else {
-                logger.error("Hidden-section target did not appear after bounded retries")
+        guard let target = hiddenTargetWindow(), Self.isVisibleMenuBarFrame(target.frame) else {
+            guard targetAttempt < 20 else {
+                logger.error("Visible hidden-section staging target did not appear after bounded retries")
                 completion(0)
                 return
             }
-            logger.info("Control window pending; retrying attempt \(targetAttempt + 1, privacy: .public)")
+            logger.info("Hidden staging target pending; retrying attempt \(targetAttempt + 1, privacy: .public)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 self?.hideAfterRestoringProtectedItems(items, relativeTo: controlFrame, targetAttempt: targetAttempt + 1, managedSystemNames: managedSystemNames, completion: completion)
             }
@@ -280,7 +280,10 @@ final class MenuBarLayoutManager {
 
     private func hideSequentially(_ items: [MenuBarItem], index: Int, movedCount: Int, completion: @escaping (Int) -> Void) {
         guard index < items.count else { completion(movedCount); return }
-        guard let target = hiddenTargetWindow() else { completion(movedCount); return }
+        guard let target = hiddenTargetWindow(), Self.isVisibleMenuBarFrame(target.frame) else {
+            completion(movedCount)
+            return
+        }
         let item = items[index]
         move(item, relativeTo: target.id, placement: .left) { [weak self] moved in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
@@ -356,7 +359,11 @@ final class MenuBarLayoutManager {
         // target's visible frame becomes the safe fallback for both events.
         let itemPoint = CGPoint(x: itemFrame.midX, y: itemFrame.midY)
         let startPoint = safeEventPoint(preferred: itemPoint, fallback: targetFrame)
-        let destinationPoint = destinationPoint(for: placement, itemFrame: itemFrame, targetFrame: targetFrame)
+        guard let destinationPoint = destinationPoint(for: placement, itemFrame: itemFrame, targetFrame: targetFrame) else {
+            logger.error("Refusing menu-bar move because the destination edge is off the active display")
+            completion(false)
+            return
+        }
         guard let down = targetedEvent(type: .leftMouseDown, point: startPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
               let dragged = targetedEvent(type: .leftMouseDragged, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: true),
               let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: true) else {
@@ -447,15 +454,18 @@ final class MenuBarLayoutManager {
         NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
     }
 
-    private func destinationPoint(for placement: Placement, itemFrame: CGRect, targetFrame: CGRect) -> CGPoint {
+    private func destinationPoint(for placement: Placement, itemFrame: CGRect, targetFrame: CGRect) -> CGPoint? {
         let x: CGFloat
         switch placement {
         case .left:
-            // Prefer the left quarter of the target. For a bounded hidden
-            // lane this point remains on-screen and is unambiguously before
-            // the lane midpoint, even when the lane starts off-screen.
-            let quarter = targetFrame.minX + targetFrame.width * 0.25
-            x = min(quarter, targetFrame.midX - max(2, targetFrame.width * 0.05))
+            // Hiding means placing the item immediately before the staging
+            // host. The host is compacted by StatusBarController for the
+            // duration of a hide transaction, so this edge stays on-screen;
+            // never fall back to an interior point, which would place the
+            // item back in the visible section.
+            let edge = CGPoint(x: targetFrame.minX - 1, y: targetFrame.midY)
+            guard Self.activeDisplayBounds().contains(where: { $0.contains(edge) }) else { return nil }
+            return edge
         case .right:
             // Drop just beyond the visible control item. Clamp below in
             // `safeEventPoint` if the control item is near a display edge.
@@ -556,11 +566,10 @@ final class MenuBarLayoutManager {
     private static func fetchWindowRecords() -> [(id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)] {
         let list = MenuBarWindowServer.windowInfo()
         return list.compactMap { info -> (id: CGWindowID, pid: pid_t, title: String, owner: String, frame: CGRect)? in
-            guard (info[kCGWindowLayer as String] as? Int) == 25,
-                  let id = info[kCGWindowNumber as String] as? Int,
-                  let pid = info[kCGWindowOwnerPID as String] as? Int,
-                  let b = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
-            let frame = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
+            guard MenuBarWindowServer.isStatusItemLayer(info),
+                  let id = MenuBarWindowServer.integer(kCGWindowNumber as String, in: info),
+                  let pid = MenuBarWindowServer.integer(kCGWindowOwnerPID as String, in: info),
+                  let frame = MenuBarWindowServer.bounds(in: info) else { return nil }
             // Quartz window coordinates are global. On a vertically arranged
             // multi-display setup, or on systems that place the menu bar at a
             // non-zero global Y coordinate, the primary-display assumption

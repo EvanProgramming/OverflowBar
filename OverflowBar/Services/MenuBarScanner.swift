@@ -103,10 +103,10 @@ final class MenuBarScanner {
         // remain in the settings and overflow panel when either is refreshed.
         let windows = MenuBarWindowServer.windowInfo()
         let candidates: [(identifier: Int, ownerPID: Int, title: String, owner: String, ownerKey: String, appIcon: NSImage?, frame: CGRect)] = windows.compactMap { window in
-            guard (window[kCGWindowLayer as String] as? Int) == 25,
-                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                  let identifier = window[kCGWindowNumber as String] as? Int,
-                  let ownerPID = window[kCGWindowOwnerPID as String] as? Int else { return nil }
+            guard MenuBarWindowServer.isStatusItemLayer(window),
+                  let bounds = MenuBarWindowServer.bounds(in: window),
+                  let identifier = MenuBarWindowServer.integer(kCGWindowNumber as String, in: window),
+                  let ownerPID = MenuBarWindowServer.integer(kCGWindowOwnerPID as String, in: window) else { return nil }
             guard ownerPID != Int(getpid()), !ownedStatusWindowIDs.contains(CGWindowID(identifier)) else { return nil }
             let title = (window[kCGWindowName as String] as? String) ?? "Menu Bar Item"
             guard !excludedTitles.contains(title) else { return nil }
@@ -123,7 +123,7 @@ final class MenuBarScanner {
             // square, not the status item's icon. Keep it out of the panel so
             // the item-specific capture/fallback symbol can be used instead.
             let applicationIcon = ownerKey == "Control Center" ? nil : runningApp?.icon
-            let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+            let frame = bounds
             guard isMenuBarWindowFrame(frame), frame.width > 4, frame.height > 4, frame.height <= 40 else { return nil }
             return (identifier, ownerPID, title, owner, ownerKey, applicationIcon, frame)
         }
@@ -153,16 +153,16 @@ final class MenuBarScanner {
     func windowSignature() -> Set<String> {
         let windows = MenuBarWindowServer.windowInfo()
         return Set(windows.compactMap { window in
-            guard (window[kCGWindowLayer as String] as? Int) == 25,
-                  let identifier = window[kCGWindowNumber as String] as? Int,
-                  let ownerPID = window[kCGWindowOwnerPID as String] as? Int,
+            guard MenuBarWindowServer.isStatusItemLayer(window),
+                  let identifier = MenuBarWindowServer.integer(kCGWindowNumber as String, in: window),
+                  let ownerPID = MenuBarWindowServer.integer(kCGWindowOwnerPID as String, in: window),
                   ownerPID != Int(getpid()),
                   !ownedStatusWindowIDs.contains(CGWindowID(identifier)),
-                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+                  let bounds = MenuBarWindowServer.bounds(in: window) else { return nil }
             let title = (window[kCGWindowName as String] as? String) ?? ""
             guard !excludedTitles.contains(title) else { return nil }
-            let width = Int((bounds["Width"] ?? 0).rounded())
-            let height = Int((bounds["Height"] ?? 0).rounded())
+            let width = Int(bounds.width.rounded())
+            let height = Int(bounds.height.rounded())
             guard width > 4, height > 4, height <= 40 else { return nil }
             return "\(identifier)|\(ownerPID)|\(title)|\(width)x\(height)"
         })

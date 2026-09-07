@@ -32,6 +32,8 @@ final class MenuBarItemStore: ObservableObject {
     // menu is still interactive.
     private var menuTrackingDepth = 0
     private var layoutWorkItem: DispatchWorkItem?
+    private var layoutStartWorkItem: DispatchWorkItem?
+    private var layoutStartGeneration = 0
     private var automaticLayoutWorkItem: DispatchWorkItem?
     private var refreshWorkItem: DispatchWorkItem?
     private var captureTask: Task<Void, Never>?
@@ -47,6 +49,7 @@ final class MenuBarItemStore: ObservableObject {
     private var layoutRepairAttempts = 0
     var onImagesReady: (() -> Void)?
     var onLayoutStateChanged: (() -> Void)?
+    var onLayoutOperationStateChanged: ((Bool) -> Void)?
 
     init() {
         layoutManager = MenuBarLayoutManager(preferences: preferences)
@@ -81,6 +84,7 @@ final class MenuBarItemStore: ObservableObject {
         monitorTimer?.invalidate()
         refreshWorkItem?.cancel()
         layoutWorkItem?.cancel()
+        layoutStartWorkItem?.cancel()
         automaticLayoutWorkItem?.cancel()
         captureTask?.cancel()
         transientDismissCheck?.cancel()
@@ -300,6 +304,7 @@ final class MenuBarItemStore: ObservableObject {
             applyLayout()
         } else if let controlItemFrame {
             layoutOperationMessage = "Restoring menu bar items…"
+            onLayoutOperationStateChanged?(false)
             layoutManager.restore(previouslySelected, relativeTo: controlItemFrame) { [weak self] count in
                 self?.layoutOperationMessage = count > 0 ? "Restored \(count) menu bar items." : "Menu bar items are already visible."
             }
@@ -366,6 +371,7 @@ final class MenuBarItemStore: ObservableObject {
     private func scheduleAutomaticLayoutIfNeeded() {
         guard preferences.hasCompletedOnboarding,
               layoutManagementEnabled,
+              !isApplyingLayout,
               !selectedItems.isEmpty,
               isReadyForManagedLayout,
               selectedItems.contains(where: layoutManager.isVisible) else { return }
@@ -396,27 +402,46 @@ final class MenuBarItemStore: ObservableObject {
             scheduleLayoutRetry(after: 0.2)
             return
         }
+        automaticLayoutWorkItem?.cancel()
+        automaticLayoutWorkItem = nil
         isApplyingLayout = true
         layoutOperationMessage = "Applying hidden layout…"
-        layoutManager.hide(selectedItems, relativeTo: controlItemFrame ?? .zero) { [weak self] count in
-            guard let self else { return }
-            self.isApplyingLayout = false
-            let remaining = self.selectedItems.filter(self.layoutManager.needsHiding)
-            if remaining.isEmpty {
-                self.layoutRepairAttempts = 0
-                self.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
-            } else if self.layoutRepairAttempts < 2 {
-                self.layoutRepairAttempts += 1
-                self.layoutOperationMessage = "Repairing hidden layout (\(remaining.count) remaining)…"
-                self.scheduleLayoutRetry(after: 0.4)
-            } else {
-                self.layoutOperationMessage = "Hidden layout incomplete (\(remaining.count) still visible). Try Apply Hidden Layout again."
-            }
-            if self.shouldApplyLayoutAgain {
-                self.shouldApplyLayoutAgain = false
-                self.scheduleLayoutRetry(after: 0.2)
+        onLayoutOperationStateChanged?(true)
+        layoutStartGeneration += 1
+        let startGeneration = layoutStartGeneration
+        let start = DispatchWorkItem { [weak self] in
+            guard let self, self.layoutStartGeneration == startGeneration, self.isApplyingLayout else { return }
+            self.layoutStartWorkItem = nil
+            self.layoutManager.hide(selectedItems, relativeTo: self.controlItemFrame ?? .zero) { [weak self] count in
+                guard let self else { return }
+                // Re-expand the staging host before judging visibility. The
+                // enlarged host is what pushes the newly adjacent items off
+                // the active display. Keep the operation active during this
+                // settling window so a WindowServer refresh cannot re-enter
+                // `applyLayout` and shrink the staging host again.
+                self.onLayoutOperationStateChanged?(false)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.isApplyingLayout = false
+                    let remaining = self.selectedItems.filter(self.layoutManager.needsHiding)
+                    if remaining.isEmpty {
+                        self.layoutRepairAttempts = 0
+                        self.layoutOperationMessage = count > 0 ? "Hidden layout updated (\(count) moved)." : "No menu bar items needed moving."
+                    } else if self.layoutRepairAttempts < 2 {
+                        self.layoutRepairAttempts += 1
+                        self.layoutOperationMessage = "Repairing hidden layout (\(remaining.count) remaining)…"
+                        self.scheduleLayoutRetry(after: 0.4)
+                    } else {
+                        self.layoutOperationMessage = "Hidden layout incomplete (\(remaining.count) still visible). Try Apply Hidden Layout again."
+                    }
+                    if self.shouldApplyLayoutAgain {
+                        self.shouldApplyLayoutAgain = false
+                        self.scheduleLayoutRetry(after: 0.2)
+                    }
+                }
             }
         }
+        layoutStartWorkItem = start
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: start)
     }
 
     private func scheduleLayoutRetry(after delay: TimeInterval) {
@@ -427,8 +452,13 @@ final class MenuBarItemStore: ObservableObject {
     }
 
     func restoreLayout(completion: @escaping () -> Void = {}) {
+        layoutStartWorkItem?.cancel()
+        layoutStartWorkItem = nil
+        layoutStartGeneration += 1
+        isApplyingLayout = false
         guard let controlItemFrame else { completion(); return }
         layoutOperationMessage = "Restoring menu bar items…"
+        onLayoutOperationStateChanged?(false)
         layoutManager.restore(selectedItems, relativeTo: controlItemFrame) { [weak self] count in
             self?.layoutOperationMessage = count > 0 ? "Restored \(count) menu bar items." : "Menu bar items are already visible."
             completion()
@@ -640,7 +670,10 @@ final class MenuBarItemStore: ObservableObject {
         // Capture the pointer inside the actual menu/popover interaction. The
         // original panel position is stale by this point and restoring it
         // would reopen hover UI or leave other apps with a false hit target.
-        layoutManager.rehide(item, restoreCursorLocation: nil)
+        onLayoutOperationStateChanged?(true)
+        layoutManager.rehide(item, restoreCursorLocation: nil) { [weak self] _ in
+            self?.onLayoutOperationStateChanged?(false)
+        }
     }
 
     private func cancelPendingRehide() {
@@ -665,14 +698,14 @@ final class MenuBarItemStore: ObservableObject {
             NSRunningApplication(processIdentifier: ownerPID)?.bundleIdentifier == "com.apple.controlcenter"
         let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
         return windows.contains { info in
-            guard let windowPID = info[kCGWindowOwnerPID as String] as? Int,
-                  let layer = info[kCGWindowLayer as String] as? Int,
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return false }
+            guard let windowPID = MenuBarWindowServer.integer(kCGWindowOwnerPID as String, in: info),
+                  let layer = MenuBarWindowServer.integer(kCGWindowLayer as String, in: info),
+                  let bounds = MenuBarWindowServer.bounds(in: info) else { return false }
             let windowOwner = (info[kCGWindowOwnerName as String] as? String) ?? ""
             let sameOwner = pid_t(windowPID) == ownerPID || (protectedOwner && windowOwner == "Control Center")
             guard sameOwner else { return false }
-            let width = bounds["Width"] ?? 0
-            let height = bounds["Height"] ?? 0
+            let width = bounds.width
+            let height = bounds.height
             guard layer > 25 || (layer == 25 && height > 40) else { return false }
             return width > 4 && height > 4
         }

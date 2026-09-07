@@ -13,19 +13,31 @@ final class MenuBarCaptureService {
     }
 
     private let logger = Logger(subsystem: "com.overflowbar.app", category: "capture")
+    private var didWaitForStatusHosts = false
 
     func capture(_ items: [MenuBarItem]) async -> [String: NSImage] {
-        guard CGPreflightScreenCaptureAccess() else {
-            logger.info("Screen capture permission is not granted")
-            return [:]
+        if !didWaitForStatusHosts {
+            didWaitForStatusHosts = true
+            // macOS 26 tears down third-party hosted status items when the
+            // first ScreenCaptureKit enumeration races their Control Center
+            // scene attachment. Let both hosts finish attaching first.
+            try? await Task.sleep(nanoseconds: 600_000_000)
         }
-
         let snapshots = items.compactMap { item in
             item.windowID.map { WindowSnapshot(itemID: item.id, windowID: $0) }
         }
         guard !snapshots.isEmpty else { return [:] }
 
-        var images = await captureWithScreenCaptureKit(snapshots)
+        // ScreenCaptureKit requires Screen Recording. The legacy WindowServer
+        // image path is still usable for the small status-item windows on some
+        // macOS 26 installations even when the preflight identity is stale,
+        // so do not discard every icon before trying that compatibility path.
+        var images: [String: NSImage] = [:]
+        if CGPreflightScreenCaptureAccess() {
+            images = await captureWithScreenCaptureKit(snapshots)
+        } else {
+            logger.info("Screen capture preflight is false; using compatibility capture")
+        }
         let missing = snapshots.filter { images[$0.itemID] == nil }
 
         if !missing.isEmpty {

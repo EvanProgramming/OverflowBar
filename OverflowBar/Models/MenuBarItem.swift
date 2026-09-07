@@ -86,6 +86,13 @@ final class MenuBarItem: Identifiable {
     }
 
     var tooltip: String { title.isEmpty ? ownerName : "\(ownerName) — \(title)" }
+    /// Control Center-hosted status windows contain monochrome template glyphs.
+    /// Recolor those captures so white menu-bar glyphs remain visible on a
+    /// light OverflowBar panel/settings surface; application-owned images keep
+    /// their original colors.
+    var usesTemplateIcon: Bool {
+        iconImage != nil && (ownerName == "Control Center" || isProtectedSystemItem)
+    }
     var isAlwaysVisibleSystemItem: Bool {
         guard isProtectedSystemItem else { return false }
         return title == "Screen Recording" || title == "Audio and Video Controls"

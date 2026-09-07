@@ -172,11 +172,10 @@ final class MenuBarItemActivator {
     private func visiblePoint(for item: MenuBarItem) -> CGPoint? {
         let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
         let records: [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] = windows.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? Int) == 25,
-                  let id = info[kCGWindowNumber as String] as? Int,
-                  let pid = info[kCGWindowOwnerPID as String] as? Int,
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
-            let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+            guard MenuBarWindowServer.isStatusItemLayer(info),
+                  let id = MenuBarWindowServer.integer(kCGWindowNumber as String, in: info),
+                  let pid = MenuBarWindowServer.integer(kCGWindowOwnerPID as String, in: info),
+                  let frame = MenuBarWindowServer.bounds(in: info) else { return nil }
             guard isVisibleMenuBarFrame(frame) else { return nil }
             let title = (info[kCGWindowName as String] as? String) ?? ""
             return (CGWindowID(id), pid_t(pid), title, frame)
@@ -235,8 +234,9 @@ final class MenuBarItemActivator {
 
     private func currentFrame(windowID: CGWindowID) -> CGRect? {
         let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        guard let bounds = windows.first(where: { ($0[kCGWindowNumber as String] as? Int) == Int(windowID) })?[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
-        return CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+        guard let window = windows.first(where: { MenuBarWindowServer.integer(kCGWindowNumber as String, in: $0) == Int(windowID) }),
+              let frame = MenuBarWindowServer.bounds(in: window) else { return nil }
+        return frame
     }
 
 }

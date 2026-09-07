@@ -14,10 +14,10 @@ struct OverflowItemView: View {
             Group {
                 if let image = item.displayImage {
                     Image(nsImage: image)
-                        .renderingMode(colorScheme == .dark ? .template : .original)
+                        .renderingMode(item.usesTemplateIcon ? .template : .original)
                         .resizable()
                         .scaledToFit()
-                        .foregroundStyle(colorScheme == .dark ? Color.white : Color.primary)
+                        .foregroundStyle(item.usesTemplateIcon && colorScheme == .dark ? Color.white : Color.primary)
                 }
                 else { Image(systemName: item.fallbackSymbolName).resizable().scaledToFit().padding(4).opacity(0.75) }
             }

@@ -82,6 +82,7 @@ Optional preference cleanup:
 
 ```bash
 defaults delete com.overflowbar.app
+defaults delete com.overflowbar.mac26.v6
 defaults delete com.overflowbar.mac26.compat
 defaults delete com.overflowbar.mac26.v5
 defaults delete com.overflowbar.mac26.v4
@@ -89,8 +90,9 @@ defaults delete com.overflowbar.mac26.v3
 defaults delete com.overflowbar.mac26.v2
 ```
 
-The compatibility build uses `com.overflowbar.mac26.compat` so macOS 26 does not
-reuse a stale Control Center host registration from an older build. After an
-update, re-enable Accessibility and Screen Recording for the new OverflowBar
-entry if System Settings lists it separately; user selections are migrated,
-but old status-item placement records are intentionally not.
+The macOS 26 compatibility build uses the fresh identity
+`com.overflowbar.mac26.v6` so macOS does not reuse a stale Control Center host
+registration from an older build. After an update, re-enable Accessibility and
+Screen Recording for the new OverflowBar entry if System Settings lists it
+separately; user selections are migrated, but old status-item placement
+records are intentionally not.
