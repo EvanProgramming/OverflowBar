@@ -20,15 +20,14 @@ final class PermissionManager: ObservableObject {
     }
 
     func requestScreenRecording() {
-        // Permission state can be stale when a local build replaces the
-        // release identity. Calling CGRequestScreenCaptureAccess repeatedly
-        // in that state reopens the macOS authorization sheet even when
-        // System Settings still shows OverflowBar as allowed. A permission
-        // button must only open the settings pane; capture itself remains
-        // gated by the read-only preflight check in MenuBarCaptureService.
         refresh()
         guard !screenRecordingGranted else { return }
-        openScreenRecordingSettings()
+        // Ask TCC first so supported app identities get the native prompt.
+        // Ad-hoc/background builds may not be promptable on macOS 26; in that
+        // case, open the exact pane so the user can add or enable this build.
+        _ = CGRequestScreenCaptureAccess()
+        refresh()
+        if !screenRecordingGranted { openScreenRecordingSettings() }
     }
 
     func openAccessibilitySettings() { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }
