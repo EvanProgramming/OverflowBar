@@ -12,6 +12,20 @@ All notable user-visible changes to OverflowBar are documented here.
 - Isolated synthetic menu-bar activation events so unrelated applications keep their real pointer and hover state.
 - Kept OverflowBar visible while an activated application's menu or popover is being used, rehiding it only after the transient UI is dismissed.
 
+## [1.0.18] - 2026-09-12
+
+This is a compatibility replacement for users who could not use the previous
+latest stable OverflowBar release.
+
+- Stabilized macOS 26 Control Center host detection so composite hosts are not
+  treated as draggable individual status items.
+- Kept automatic hiding requests queued across WindowServer refreshes instead
+  of dropping the only re-hide trigger while a layout pass is in flight.
+- Re-scanned after application activation and re-hide settles so newly-created
+  menu-bar windows are hidden reliably.
+- Extended bounded startup retries and kept all synthetic drag coordinates on
+  the active display for ad-hoc builds with fresh TCC identities.
+
 ## [1.0.16] - 2026-08-04
 
 - Clarified menu-bar activation status in Settings: WindowServer-backed items now show the fast activation indicator instead of a misleading warning.
@@ -120,7 +134,8 @@ All notable user-visible changes to OverflowBar are documented here.
 
 - Initial public release with item discovery, selection, managed hiding, second-row presentation, and hybrid activation.
 
-[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.16...HEAD
+[Unreleased]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.18...HEAD
+[1.0.18]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.17...v1.0.18
 [1.0.16]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.15...v1.0.16
 [1.0.15]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.14...v1.0.15
 [1.0.14]: https://github.com/EvanProgramming/OverflowBar/compare/v1.0.13...v1.0.14

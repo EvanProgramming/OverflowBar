@@ -371,10 +371,17 @@ final class MenuBarItemStore: ObservableObject {
     private func scheduleAutomaticLayoutIfNeeded() {
         guard preferences.hasCompletedOnboarding,
               layoutManagementEnabled,
-              !isApplyingLayout,
               !selectedItems.isEmpty,
               isReadyForManagedLayout,
               selectedItems.contains(where: layoutManager.isVisible) else { return }
+        // A WindowServer refresh can discover a new item while the previous
+        // hide transaction is still settling. Preserve that request so the
+        // completion path can run one fresh layout pass instead of dropping
+        // the only automatic-hide trigger.
+        if isApplyingLayout {
+            shouldApplyLayoutAgain = true
+            return
+        }
         automaticLayoutWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -674,8 +681,15 @@ final class MenuBarItemStore: ObservableObject {
         // original panel position is stale by this point and restoring it
         // would reopen hover UI or leave other apps with a false hit target.
         onLayoutOperationStateChanged?(true)
-        layoutManager.rehide(item, restoreCursorLocation: nil) { [weak self] _ in
-            self?.onLayoutOperationStateChanged?(false)
+        layoutManager.rehide(item, restoreCursorLocation: nil) { [weak self] moved in
+            guard let self else { return }
+            self.onLayoutOperationStateChanged?(false)
+            // Control Center can reflow the whole hosted bar immediately
+            // after a successful drag, or replace the clicked window while
+            // its menu opens. Re-scan every result so automatic layout can
+            // target the post-click frame/window instead of trusting the
+            // pre-click MenuBarItem snapshot.
+            self.scheduleRefresh(after: moved ? 0.35 : 0.25, reason: moved ? "rehide settle" : "rehide retry")
         }
     }
 

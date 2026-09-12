@@ -359,11 +359,7 @@ final class MenuBarLayoutManager {
         // target's visible frame becomes the safe fallback for both events.
         let itemPoint = CGPoint(x: itemFrame.midX, y: itemFrame.midY)
         let startPoint = safeEventPoint(preferred: itemPoint, fallback: targetFrame)
-        guard let destinationPoint = destinationPoint(for: placement, itemFrame: itemFrame, targetFrame: targetFrame) else {
-            logger.error("Refusing menu-bar move because the destination edge is off the active display")
-            completion(false)
-            return
-        }
+        let destinationPoint = destinationPoint(for: placement, itemFrame: itemFrame, targetFrame: targetFrame)
         guard let down = targetedEvent(type: .leftMouseDown, point: startPoint, windowID: itemWindowID, pid: ownerPID, source: source, command: true),
               let dragged = targetedEvent(type: .leftMouseDragged, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: true),
               let up = targetedEvent(type: .leftMouseUp, point: destinationPoint, windowID: targetWindowID, pid: ownerPID, source: source, command: true) else {
@@ -454,18 +450,16 @@ final class MenuBarLayoutManager {
         NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
     }
 
-    private func destinationPoint(for placement: Placement, itemFrame: CGRect, targetFrame: CGRect) -> CGPoint? {
+    private func destinationPoint(for placement: Placement, itemFrame: CGRect, targetFrame: CGRect) -> CGPoint {
         let x: CGFloat
         switch placement {
         case .left:
-            // Hiding means placing the item immediately before the staging
-            // host. The host is compacted by StatusBarController for the
-            // duration of a hide transaction, so this edge stays on-screen;
-            // never fall back to an interior point, which would place the
-            // item back in the visible section.
-            let edge = CGPoint(x: targetFrame.minX - 1, y: targetFrame.midY)
-            guard Self.activeDisplayBounds().contains(where: { $0.contains(edge) }) else { return nil }
-            return edge
+            // The staging host is intentionally wider than the display on
+            // macOS 26, so its left edge can be negative. WindowServer still
+            // receives the hidden-host window ID below; keep the drag point
+            // on the active display and inside the host's visible portion.
+            let quarter = targetFrame.minX + targetFrame.width * 0.25
+            x = min(quarter, targetFrame.midX - max(2, targetFrame.width * 0.05))
         case .right:
             // Drop just beyond the visible control item. Clamp below in
             // `safeEventPoint` if the control item is near a display edge.

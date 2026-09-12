@@ -95,7 +95,11 @@ final class StatusBarController: NSObject {
         // Control Center publishes the hosted window title/ID asynchronously;
         // retry the read while the scene settles so layout never captures a
         // transient zero ID.
-        for delay in [2.0, 4.0, 8.0] {
+        // A new ad-hoc client can take longer than eight seconds to receive
+        // its Control Center scene after a stale registration is discarded.
+        // Keep publishing until that bounded startup window has elapsed so
+        // layout does not permanently retain a zero target ID.
+        for delay in [2.0, 4.0, 8.0, 12.0, 16.0, 24.0, 32.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self else { return }
                 self.statusHostsReady = true

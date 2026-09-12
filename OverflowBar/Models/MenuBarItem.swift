@@ -11,6 +11,14 @@ enum MenuBarSystemItemClassifier {
 
     static func isProtected(_ title: String, owner: String? = nil) -> Bool {
         let normalized = normalize(title)
+        let normalizedOwner = normalize(owner ?? "")
+        // macOS 26 publishes Live Activities and the composite right-side
+        // Control Center host as Item-11/Item-15. They are single,
+        // non-draggable windows rather than individual status items; treating
+        // either as managed makes every layout pass retry a drag that cannot
+        // succeed.
+        if normalizedOwner.contains("controlcenter"),
+           ["item-11", "item-15"].contains(normalized) { return true }
         return normalized.contains("clock") ||
             normalized.contains("battery") ||
             normalized.contains("siri") ||
@@ -95,7 +103,9 @@ final class MenuBarItem: Identifiable {
     }
     var isAlwaysVisibleSystemItem: Bool {
         guard isProtectedSystemItem else { return false }
-        return title == "Screen Recording" || title == "Audio and Video Controls"
+        return title == "Screen Recording" ||
+            title == "Audio and Video Controls" ||
+            (title == "Control Center Item" && frame.width > 100)
     }
     var displayImage: NSImage? { iconImage ?? applicationIcon }
     /// The activation path used by the item. WindowServer-backed items do not
