@@ -106,7 +106,6 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           notes_file="RELEASE_NOTES.md"
-          release_args=()
           release_assets=(
             "dist/OverflowBar-${version}.dmg"
             "dist/OverflowBar-${version}.dmg.sha256"
@@ -114,13 +113,17 @@ jobs:
           )
           if [[ "$version" == *-macos27-compat.* ]]; then
             notes_file="RELEASE_NOTES_MACOS27.md"
-            release_args+=(--prerelease)
+            gh release create "${GITHUB_REF_NAME}" \
+              "${release_assets[@]}" \
+              --title "OverflowBar ${version}" \
+              --notes-file "$notes_file" \
+              --prerelease \
+              --verify-tag
           else
             release_assets+=("dist/appcast.xml")
+            gh release create "${GITHUB_REF_NAME}" \
+              "${release_assets[@]}" \
+              --title "OverflowBar ${version}" \
+              --notes-file "$notes_file" \
+              --verify-tag
           fi
-          gh release create "${GITHUB_REF_NAME}" \
-            "${release_assets[@]}" \
-            --title "OverflowBar ${version}" \
-            --notes-file "$notes_file" \
-            "${release_args[@]}" \
-            --verify-tag
