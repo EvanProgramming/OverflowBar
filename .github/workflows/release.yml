@@ -14,6 +14,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify Xcode 26 toolchain
         shell: bash
@@ -29,6 +31,8 @@ jobs:
           set -euo pipefail
           tag_version="${GITHUB_REF_NAME#v}"
           app_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' OverflowBar/Resources/Info.plist)
+          build_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' OverflowBar/Resources/Info.plist)
+          [[ "$build_version" =~ ^[0-9]+$ ]]
           if [[ "$tag_version" == *-macos27-compat.* ]]; then
             base_version="${tag_version%%-macos27-*}"
             test "$base_version" = "$app_version"
@@ -39,6 +43,12 @@ jobs:
           bash -n scripts/create-dmg.sh
           if [[ "$tag_version" != *-macos27-compat.* ]]; then
             bash scripts/validate-homebrew-cask.sh
+            previous_tag="$(git tag --list 'v*' --sort=-version:refname | grep -v "^${GITHUB_REF_NAME}$" | grep -v -- '-macos27-compat' | head -n 1 || true)"
+            if [[ -n "$previous_tag" ]]; then
+              git show "$previous_tag:OverflowBar/Resources/Info.plist" > "$RUNNER_TEMP/previous-info.plist"
+              previous_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$RUNNER_TEMP/previous-info.plist")
+              test "$build_version" -gt "$previous_build"
+            fi
           fi
 
       - name: Build release DMG
@@ -49,8 +59,44 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
+          zip="dist/OverflowBar-${version}.zip"
           hdiutil verify "dist/OverflowBar-${version}.dmg"
           (cd dist && shasum -a 256 -c "OverflowBar-${version}.dmg.sha256")
+          unzip -Z1 "$zip" | grep -Fx 'OverflowBar.app/Contents/Info.plist'
+          if unzip -Z1 "$zip" | grep -v '^OverflowBar\.app/' | grep -q .; then
+            echo 'Updater ZIP contains files outside OverflowBar.app' >&2
+            exit 1
+          fi
+
+      - name: Generate signed Sparkle appcast
+        if: ${{ !contains(github.ref_name, '-macos27-compat.') }}
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SPARKLE_ED_KEY"
+          version="${GITHUB_REF_NAME#v}"
+          archive_dir="$RUNNER_TEMP/overflowbar-appcast"
+          sparkle_dir="$RUNNER_TEMP/sparkle-2.9.6"
+          mkdir -p "$archive_dir" "$sparkle_dir"
+          cp "dist/OverflowBar-${version}.zip" "$archive_dir/"
+          cp RELEASE_NOTES.md "$archive_dir/OverflowBar-${version}.md"
+          curl --fail --location --retry 3 \
+            https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz \
+            --output "$RUNNER_TEMP/Sparkle-2.9.6.tar.xz"
+          tar -xJf "$RUNNER_TEMP/Sparkle-2.9.6.tar.xz" -C "$sparkle_dir"
+          printf '%s\n' "$SPARKLE_ED_KEY" | "$sparkle_dir/bin/generate_appcast" \
+            --account overflowbar \
+            --ed-key-file - \
+            --embed-release-notes \
+            --download-url-prefix "https://github.com/EvanProgramming/OverflowBar/releases/download/${GITHUB_REF_NAME}/" \
+            --link "https://github.com/EvanProgramming/OverflowBar/releases/tag/${GITHUB_REF_NAME}" \
+            "$archive_dir"
+          mv "$archive_dir/appcast.xml" dist/appcast.xml
+          grep -q 'sparkle:edSignature=' dist/appcast.xml
+          grep -q 'edSignature:' dist/appcast.xml
+          grep -q "OverflowBar-${version}\.zip" dist/appcast.xml
 
       - name: Publish GitHub Release
         env:
@@ -61,13 +107,19 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           notes_file="RELEASE_NOTES.md"
           release_args=()
+          release_assets=(
+            "dist/OverflowBar-${version}.dmg"
+            "dist/OverflowBar-${version}.dmg.sha256"
+            "dist/OverflowBar-${version}.zip"
+          )
           if [[ "$version" == *-macos27-compat.* ]]; then
             notes_file="RELEASE_NOTES_MACOS27.md"
             release_args+=(--prerelease)
+          else
+            release_assets+=("dist/appcast.xml")
           fi
           gh release create "${GITHUB_REF_NAME}" \
-            "dist/OverflowBar-${version}.dmg" \
-            "dist/OverflowBar-${version}.dmg.sha256" \
+            "${release_assets[@]}" \
             --title "OverflowBar ${version}" \
             --notes-file "$notes_file" \
             "${release_args[@]}" \

@@ -1,8 +1,9 @@
 # Release process
 
-OverflowBar uses semantic version tags and publishes installable DMGs through GitHub Releases.
-The DMG is the primary distribution path; the third-party Homebrew Cask mirrors
-the same versioned DMG and checksum as an alternative installation method.
+OverflowBar uses semantic version tags and publishes installable DMGs plus
+Sparkle ZIP/appcast assets through GitHub Releases. The DMG remains the primary
+manual distribution path; the ZIP is the in-app update payload and the
+third-party Homebrew Cask mirrors the DMG.
 
 ## Cadence
 
@@ -14,7 +15,7 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
 
 ## Checklist
 
-1. Update `CFBundleShortVersionString` and `CFBundleVersion` in `OverflowBar/Resources/Info.plist`.
+1. Update `CFBundleShortVersionString` and increase `CFBundleVersion` in `OverflowBar/Resources/Info.plist`.
 2. Update `Casks/overflowbar.rb` with the release version and the SHA-256 of the matching DMG.
 3. Move user-visible changes into `CHANGELOG.md` and update `RELEASE_NOTES.md`.
 4. Build Debug and Release configurations.
@@ -25,13 +26,17 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
    - second row opens and closes
    - direct and temporary-reveal activation work
    - Safe Reset and normal quit restore the layout
-6. Build and verify the DMG:
+6. Build and verify the DMG and updater ZIP:
 
    ```bash
    ./scripts/create-dmg.sh
    hdiutil verify dist/OverflowBar-<version>.dmg
    shasum -a 256 -c dist/OverflowBar-<version>.dmg.sha256
    ```
+
+   The release workflow also generates and signs `dist/appcast.xml` using the
+   `SPARKLE_ED_KEY` GitHub Actions secret. Keep the private key out of the
+   repository and publish only the public key in `Info.plist`.
 
 7. Validate the Homebrew Cask metadata:
 
@@ -47,7 +52,9 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
    git push origin v<version>
    ```
 
-The tag triggers `.github/workflows/release.yml`, which validates version parity, builds the DMG, and creates the GitHub Release with the checksum attached.
+The tag triggers `.github/workflows/release.yml`, which validates version
+parity and monotonic build numbers, builds the DMG and updater ZIP, generates
+the signed appcast, and creates the GitHub Release with all updater assets.
 
 ## Signing
 

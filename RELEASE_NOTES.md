@@ -1,8 +1,10 @@
-# OverflowBar 1.0.18 — Compatibility Replacement
+# OverflowBar 1.0.19 — In-App Updates
 
-OverflowBar 1.0.18 is the compatibility replacement for users who could not
-use the previous latest stable release. It contains the macOS 26 hiding and
-re-hide fixes from the validated compatibility build.
+OverflowBar 1.0.19 adds signed in-app updates so future releases can be
+installed from OverflowBar Settings without manually downloading another
+GitHub release.
+
+The existing macOS 26 compatibility and menu-bar layout fixes remain included.
 
 ## Fixed
 
@@ -13,16 +15,18 @@ re-hide fixes from the validated compatibility build.
   are hidden again.
 - Extended bounded startup retries for newly-installed ad-hoc builds and kept
   synthetic drag points on an active display.
+- Added Sparkle-backed update checks, release notes, signed updater archives,
+  and a manual confirmation step before installation.
 
 ## Verification
 
 - Installed `/Applications/OverflowBar.app` on macOS 26 and completed a clean
   single-instance run.
-- Captured 6 of 6 real menu-bar icons through the macOS 26 compatibility path.
+- Captured real menu-bar icons through the macOS 26 compatibility path.
 - Verified successful hide moves for the selected icons and subsequent re-hide
   after activation.
-- Release build, DMG verification, and SHA-256 checks are included with the
-  release assets.
+- Release build, DMG verification, updater ZIP verification, and SHA-256 checks
+  are included with the release assets.
 
 ## Important for affected users
 
@@ -37,7 +41,7 @@ re-hide fixes from the validated compatibility build.
 
 ## Install
 
-1. Download `OverflowBar-1.0.18.dmg` below.
+1. Download `OverflowBar-1.0.19.dmg` below.
 2. Drag OverflowBar to Applications and replace the older copy.
 3. Open OverflowBar, complete the Accessibility and Screen Recording requests,
    then select the menu-bar items to move into the overflow panel.

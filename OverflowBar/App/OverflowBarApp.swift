@@ -6,7 +6,11 @@ struct OverflowBarApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(store: appDelegate.store, showOnboarding: { appDelegate.showOnboarding() })
+            SettingsView(
+                store: appDelegate.store,
+                showOnboarding: { appDelegate.showOnboarding() },
+                checkForUpdates: { appDelegate.checkForUpdates() }
+            )
         }
     }
 }

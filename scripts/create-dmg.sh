@@ -8,6 +8,7 @@ DERIVED_DATA="${DERIVED_DATA:-$ROOT/.release-build}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT/dist}"
 APP="$DERIVED_DATA/Build/Products/Release/OverflowBar.app"
 DMG="$OUTPUT_DIR/OverflowBar-$VERSION.dmg"
+ZIP="$OUTPUT_DIR/OverflowBar-$VERSION.zip"
 RW_DMG="$OUTPUT_DIR/.OverflowBar-$VERSION-rw.dmg"
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/overflowbar-dmg.XXXXXX")"
 MOUNT_POINT=""
@@ -21,7 +22,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$OUTPUT_DIR"
-rm -f "$DMG" "$DMG.sha256" "$RW_DMG"
+rm -f "$DMG" "$DMG.sha256" "$ZIP" "$RW_DMG"
 
 xcodebuild \
     -project "$ROOT/OverflowBar.xcodeproj" \
@@ -39,6 +40,11 @@ else
     codesign --force --deep --sign - "$APP"
 fi
 codesign --verify --deep --strict --verbose=2 "$APP"
+
+# Sparkle updates the app bundle directly, so keep a separate archive that
+# contains only the signed application. zip preserves nested frameworks,
+# symlinks, and executable bits without adding a __MACOSX metadata tree.
+(cd "$(dirname "$APP")" && /usr/bin/zip -qry -X -y "$ZIP" "$(basename "$APP")")
 
 ditto "$APP" "$STAGING/OverflowBar.app"
 ln -s /Applications "$STAGING/Applications"
@@ -99,4 +105,4 @@ hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/nu
 rm -f "$RW_DMG"
 
 (cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$DMG")") | tee "$DMG.sha256"
-echo "Created $DMG"
+echo "Created $DMG and $ZIP"

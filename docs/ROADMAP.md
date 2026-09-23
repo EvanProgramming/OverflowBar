@@ -18,7 +18,7 @@ This roadmap describes direction, not guaranteed delivery dates. Priorities may 
 - [ ] Per-display placement preferences
 - [ ] Named visibility profiles for work, meetings, and travel
 - [ ] Optional separator groups and custom item ordering
-- [ ] Update checks with release notes
+- [x] Update checks with release notes
 
 ## Later — ecosystem and polish
 

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import OSLog
+import Sparkle
 import SwiftUI
 
 @MainActor
@@ -11,11 +12,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var settingsWindowController: NSWindowController?
     private var onboardingWindowController: NSWindowController?
+    private var updaterController: SPUStandardUpdaterController?
     private var isFinishingTermination = false
     private var didReplyToTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger(subsystem: "com.overflowbar.app", category: "startup").info("Accessibility trusted: \(AXIsProcessTrusted(), privacy: .public)")
+        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.startMonitoring()
@@ -41,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.title = "OverflowBar Settings"
             window.contentView = NSHostingView(rootView: SettingsView(store: store, showOnboarding: { [weak self] in
                 self?.showOnboarding()
+            }, checkForUpdates: { [weak self] in
+                self?.checkForUpdates()
             }))
             window.center()
             let controller = NSWindowController(window: window)
@@ -48,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller.showWindow(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func checkForUpdates() {
+        updaterController?.checkForUpdates(nil)
     }
 
     func showOnboarding() {

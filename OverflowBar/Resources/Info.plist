@@ -7,9 +7,16 @@
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0.18</string>
-    <key>CFBundleVersion</key><string>16</string>
+    <key>CFBundleShortVersionString</key><string>1.0.19</string>
+    <key>CFBundleVersion</key><string>17</string>
     <key>LSUIElement</key><true/>
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>NSScreenCaptureUsageDescription</key><string>OverflowBar captures selected menu bar icons so it can show them in its overflow panel.</string>
+    <key>SUFeedURL</key><string>https://github.com/EvanProgramming/OverflowBar/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>3AJvBMKNABi3/HcsFi0q73d+yAgyPwfZTqdxoDudq1M=</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUAllowsAutomaticUpdates</key><false/>
+    <key>SUAutomaticallyUpdate</key><false/>
+    <key>SURequireSignedFeed</key><true/>
+    <key>SUVerifyUpdateBeforeExtraction</key><true/>
 </dict></plist>

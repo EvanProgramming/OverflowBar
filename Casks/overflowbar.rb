@@ -1,14 +1,14 @@
 cask "overflowbar" do
-  version "1.0.18"
-  sha256 "9fff4290e30452db77414340ac46da8a4e18ab0559e7aa1b8ca3d31c603044fb"
+  version "1.0.19"
+  sha256 "e4e10f4f6ae9a88ab2b4f1f7ef96ce00d8b2090f50917e1842256e9a8d1210d0"
 
   url "https://github.com/EvanProgramming/OverflowBar/releases/download/v#{version}/OverflowBar-#{version}.dmg"
   name "OverflowBar"
   desc "Menu bar utility that hides selected status items behind a second row"
   homepage "https://github.com/EvanProgramming/OverflowBar"
 
-  depends_on macos: :sequoia
   depends_on arch: :arm64
+  depends_on macos: :sequoia
 
   app "OverflowBar.app"
 

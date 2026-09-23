@@ -7,6 +7,8 @@ TEST_TAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/overflowbar-homebrew-tap.XXXXXX")"
 TAP_NAME="evanprogramming/overflowbar-ci"
 
 cleanup() {
+    brew untrust --cask "$TAP_NAME/overflowbar" >/dev/null 2>&1 || true
+    brew untrust --tap "$TAP_NAME" >/dev/null 2>&1 || true
     brew untap "$TAP_NAME" >/dev/null 2>&1 || true
     rm -rf "$TEST_TAP_DIR"
 }
@@ -24,6 +26,7 @@ git -C "$TEST_TAP_DIR" \
     commit -qm "Add OverflowBar cask"
 
 HOMEBREW_NO_AUTO_UPDATE=1 brew tap "$TAP_NAME" "$TEST_TAP_DIR" >/dev/null
+HOMEBREW_NO_AUTO_UPDATE=1 brew trust --cask "$TAP_NAME/overflowbar"
 HOMEBREW_NO_AUTO_UPDATE=1 brew style --cask "$TAP_NAME/overflowbar"
 HOMEBREW_NO_AUTO_UPDATE=1 brew info --cask "$TAP_NAME/overflowbar" >/dev/null
 

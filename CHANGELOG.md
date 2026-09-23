@@ -12,6 +12,11 @@ All notable user-visible changes to OverflowBar are documented here.
 - Isolated synthetic menu-bar activation events so unrelated applications keep their real pointer and hover state.
 - Kept OverflowBar visible while an activated application's menu or popover is being used, rehiding it only after the transient UI is dismissed.
 
+## [1.0.19] - 2026-09-23
+
+- Added Sparkle-backed in-app update checks with signed release archives,
+  release notes, and manual installation confirmation.
+
 ## [1.0.18] - 2026-09-12
 
 This is a compatibility replacement for users who could not use the previous

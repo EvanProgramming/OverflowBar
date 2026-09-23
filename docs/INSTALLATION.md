@@ -66,10 +66,13 @@ After changing either permission, quit and reopen OverflowBar if macOS does not 
 
 ## Update
 
-1. Open **Settings → Restore All Managed Icons** in the installed version.
-2. Quit OverflowBar.
-3. Download the latest DMG and replace the existing app in Applications.
-4. Reopen OverflowBar. Existing selections are preserved through `UserDefaults`.
+Open **OverflowBar Settings → Updates → Check for Updates…**. OverflowBar also
+checks periodically and asks before installing an update. Existing selections
+are preserved through `UserDefaults`.
+
+The first updater-enabled release must still be installed manually from the
+GitHub DMG. If an ad-hoc build cannot validate an update or macOS requests new
+permissions, use the matching official DMG and reauthorize the installed app.
 
 ## Uninstall
 

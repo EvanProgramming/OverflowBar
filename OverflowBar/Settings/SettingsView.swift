@@ -3,12 +3,25 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: MenuBarItemStore
     var showOnboarding: () -> Void = {}
+    var checkForUpdates: () -> Void = {}
     @StateObject private var permissions = PermissionManager()
     @StateObject private var launchAtLogin = LaunchAtLoginManager()
     @AppStorage("hoverRevealEnabled") private var hoverRevealEnabled = true
 
     var body: some View {
         Form {
+            Section("Updates") {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(appVersion)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Check for Updates…", action: checkForUpdates)
+                Text("OverflowBar checks periodically and asks before installing updates.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("General") {
                 Toggle("Open OverflowBar at Login", isOn: Binding(
                     get: { launchAtLogin.isEnabled },
@@ -92,6 +105,10 @@ struct SettingsView: View {
         .frame(minWidth: 600, minHeight: 420)
         .onAppear { permissions.refresh(); launchAtLogin.refresh(); store.refresh() }
         .alert("OverflowBar", isPresented: Binding(get: { store.lastActivationError != nil }, set: { if !$0 { store.lastActivationError = nil } })) { Button("OK", role: .cancel) { store.lastActivationError = nil } } message: { Text(store.lastActivationError ?? "") }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
     @ViewBuilder private func permissionRow(_ name: String, granted: Bool, open: @escaping () -> Void, request: @escaping () -> Void) -> some View {
