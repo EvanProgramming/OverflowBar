@@ -12,6 +12,10 @@ ZIP="$OUTPUT_DIR/OverflowBar-$VERSION.zip"
 RW_DMG="$OUTPUT_DIR/.OverflowBar-$VERSION-rw.dmg"
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/overflowbar-dmg.XXXXXX")"
 MOUNT_POINT=""
+PACKAGE_CACHE_ARGS=()
+if [[ -n "${CLONED_SOURCE_PACKAGES_DIR:-}" ]]; then
+    PACKAGE_CACHE_ARGS=(-clonedSourcePackagesDirPath "$CLONED_SOURCE_PACKAGES_DIR")
+fi
 
 cleanup() {
     if [[ -n "$MOUNT_POINT" ]]; then
@@ -29,6 +33,7 @@ xcodebuild \
     -scheme OverflowBar \
     -configuration Release \
     -derivedDataPath "$DERIVED_DATA" \
+    "${PACKAGE_CACHE_ARGS[@]}" \
     ARCHS='arm64 x86_64' \
     ONLY_ACTIVE_ARCH=NO \
     build
@@ -61,7 +66,7 @@ printf '%s\n' \
     'the app contains malware. Download OverflowBar only from the official GitHub release, then open' \
     'System Settings > Privacy & Security and choose Open Anyway if macOS blocks the first launch.' \
     '' \
-    'OverflowBar needs Accessibility and Screen Recording permissions to discover and manage menu-bar items.' \
+    'Accessibility is required for automatic icon arrangement and native clicks. Screen Recording enables genuine previews.' \
     > "$STAGING/Install Guide.txt"
 
 hdiutil create \
@@ -74,10 +79,11 @@ hdiutil create \
 # Configure a friendly Finder presentation. This is best-effort because Finder
 # is unavailable in some headless build environments; the background and guide
 # remain inside the DMG even when icon placement cannot be saved.
-ATTACH_OUTPUT="$(hdiutil attach -nobrowse "$RW_DMG")"
-MOUNT_POINT="$(printf '%s\n' "$ATTACH_OUTPUT" | sed -n 's#^.*\(/Volumes/.*\)$#\1#p' | tail -1)"
-if [[ -n "$MOUNT_POINT" ]]; then
-    osascript >/dev/null <<OSA
+if [[ "${SKIP_FINDER_LAYOUT:-0}" != 1 ]]; then
+    ATTACH_OUTPUT="$(hdiutil attach -nobrowse "$RW_DMG")"
+    MOUNT_POINT="$(printf '%s\n' "$ATTACH_OUTPUT" | sed -n 's#^.*\(/Volumes/.*\)$#\1#p' | tail -1)"
+    if [[ -n "$MOUNT_POINT" ]]; then
+        osascript >/dev/null <<OSA
 tell application "Finder"
     tell disk "OverflowBar $VERSION"
         open
@@ -96,10 +102,11 @@ tell application "Finder"
     end tell
 end tell
 OSA
-    sync
+        sync
+    fi
+    hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true
+    MOUNT_POINT=""
 fi
-hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true
-MOUNT_POINT=""
 
 hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null
 rm -f "$RW_DMG"

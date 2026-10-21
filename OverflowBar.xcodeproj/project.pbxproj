@@ -4,6 +4,32 @@
 	classes = {};
 	objectVersion = 77;
 	objects = {
+        C20000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; path = CaptureWorker.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+        C20000000000000000000003 = {isa = PBXBuildFile; fileRef = C20000000000000000000001; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }; };
+        C20000000000000000000005 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000006; proxyType = 1; remoteGlobalIDString = C20000000000000000000002; remoteInfo = CaptureWorker; };
+        C20000000000000000000006 = {isa = PBXTargetDependency; target = C20000000000000000000002; targetProxy = C20000000000000000000005; };
+        C20000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        C20000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        C20000000000000000000012 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist); target = C20000000000000000000002; };
+        C20000000000000000000002 = {isa = PBXNativeTarget; name = CaptureWorker; productName = CaptureWorker; productReference = C20000000000000000000001; productType = "com.apple.product-type.xpc-service"; buildConfigurationList = C20000000000000000000004; buildPhases = (C20000000000000000000007, C20000000000000000000008); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (C00000000000000000000010, C00000000000000000000011); };
+        C20000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (C20000000000000000000009, C2000000000000000000000A); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+        C20000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = EngineWorker/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6.CaptureWorker; PRODUCT_NAME = CaptureWorker; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SKIP_INSTALL = YES; }; };
+        C2000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = EngineWorker/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6.CaptureWorker; PRODUCT_NAME = CaptureWorker; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-O"; SKIP_INSTALL = YES; }; };
+        C00000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; path = EngineWorker.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+        C00000000000000000000003 = {isa = PBXBuildFile; fileRef = C00000000000000000000001; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }; };
+        C00000000000000000000005 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000006; proxyType = 1; remoteGlobalIDString = C00000000000000000000002; remoteInfo = EngineWorker; };
+        C00000000000000000000006 = {isa = PBXTargetDependency; target = C00000000000000000000002; targetProxy = C00000000000000000000005; };
+        C00000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        C00000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        C00000000000000000000010 = {isa = PBXFileSystemSynchronizedRootGroup; path = EngineShared; sourceTree = "<group>"; explicitFileTypes = {}; explicitFolders = (); };
+        C00000000000000000000011 = {isa = PBXFileSystemSynchronizedRootGroup; path = EngineWorker; sourceTree = "<group>"; explicitFileTypes = {}; explicitFolders = (); exceptions = (C00000000000000000000012, C20000000000000000000012); };
+        C00000000000000000000012 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist); target = C00000000000000000000002; };
+        C00000000000000000000013 = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices"; dstSubfolderSpec = 16; files = (C00000000000000000000003, C20000000000000000000003); name = "Embed Engine Worker"; runOnlyForDeploymentPostprocessing = 0; };
+        C00000000000000000000002 = {isa = PBXNativeTarget; name = EngineWorker; productName = EngineWorker; productReference = C00000000000000000000001; productType = "com.apple.product-type.xpc-service"; buildConfigurationList = C00000000000000000000004; buildPhases = (C00000000000000000000007, C00000000000000000000008); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (C00000000000000000000010, C00000000000000000000011); };
+        C00000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (C00000000000000000000009, C0000000000000000000000A); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+        C00000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = EngineWorker/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6.EngineWorker; PRODUCT_NAME = EngineWorker; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SKIP_INSTALL = YES; }; };
+        C0000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = EngineWorker/Info.plist; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6.EngineWorker; PRODUCT_NAME = EngineWorker; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-O"; SKIP_INSTALL = YES; }; };
+
 
 /* Begin PBXBuildFile section */
 		A00000000000000000000014 /* OverflowBarIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* OverflowBarIcon.icon */; };
@@ -13,6 +39,7 @@
 /* Begin PBXFileReference section */
 		A00000000000000000000001 /* OverflowBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OverflowBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000013 /* OverflowBarIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer; path = OverflowBarIcon.icon; sourceTree = "<group>"; };
+		B00000000000000000000001 /* OverflowBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OverflowBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -21,10 +48,11 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A00000000000000000000012 /* OverflowBar */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A00000000000000000000016 /* Exceptions for "OverflowBar" folder in "OverflowBar" target */,); explicitFileTypes = {}; explicitFolders = (); path = OverflowBar; sourceTree = "<group>"; };
+		B0000000000000000000000B /* OverflowBarTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = OverflowBarTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXGroup section */
-		A00000000000000000000002 = {isa = PBXGroup; children = (A00000000000000000000012 /* OverflowBar */, A00000000000000000000013 /* OverflowBarIcon.icon */, A00000000000000000000001 /* OverflowBar.app */); sourceTree = "<group>"; };
+		A00000000000000000000002 = {isa = PBXGroup; children = (C20000000000000000000001, C00000000000000000000010, C00000000000000000000011, C00000000000000000000001, A00000000000000000000012 /* OverflowBar */, B0000000000000000000000B /* OverflowBarTests */, A00000000000000000000013 /* OverflowBarIcon.icon */, A00000000000000000000001 /* OverflowBar.app */, B00000000000000000000001 /* OverflowBarTests.xctest */); sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -47,11 +75,16 @@
 /* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000003 /* OverflowBar */ = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000004; buildPhases = (A00000000000000000000020 /* Frameworks */, A00000000000000000000005 /* Sources */, A00000000000000000000015 /* Resources */,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A00000000000000000000012 /* OverflowBar */,); name = OverflowBar; packageProductDependencies = (A00000000000000000000018 /* Sparkle */,); productName = OverflowBar; productReference = A00000000000000000000001 /* OverflowBar.app */; productType = "com.apple.product-type.application"; };
+		A00000000000000000000003 /* OverflowBar */ = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000004; buildPhases = (A00000000000000000000020 /* Frameworks */, A00000000000000000000005 /* Sources */, A00000000000000000000015 /* Resources */, C00000000000000000000013); buildRules = (); dependencies = (C00000000000000000000006, C20000000000000000000006); fileSystemSynchronizedGroups = (A00000000000000000000012 /* OverflowBar */, C00000000000000000000010); name = OverflowBar; packageProductDependencies = (A00000000000000000000018 /* Sparkle */,); productName = OverflowBar; productReference = A00000000000000000000001 /* OverflowBar.app */; productType = "com.apple.product-type.application"; };
+		B00000000000000000000003 /* OverflowBarTests */ = {isa = PBXNativeTarget; buildConfigurationList = B00000000000000000000004; buildPhases = (B00000000000000000000007, B00000000000000000000008); buildRules = (); dependencies = (B00000000000000000000006,); fileSystemSynchronizedGroups = (B0000000000000000000000B,); name = OverflowBarTests; productName = OverflowBarTests; productReference = B00000000000000000000001; productType = "com.apple.product-type.bundle.unit-test"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A00000000000000000000006 /* Project object */ = {isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = { A00000000000000000000003 = { CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = A00000000000000000000007; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A00000000000000000000002; packageReferences = (A00000000000000000000017 /* XCRemoteSwiftPackageReference \"Sparkle\" */,); minimizedProjectReferenceProxies = 1; preferredProjectObjectVersion = 77; productRefGroup = A00000000000000000000002; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000003 /* OverflowBar */,); };
+		B00000000000000000000005 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000006; proxyType = 1; remoteGlobalIDString = A00000000000000000000003; remoteInfo = OverflowBar; };
+		B00000000000000000000006 = {isa = PBXTargetDependency; target = A00000000000000000000003; targetProxy = B00000000000000000000005; };
+		B00000000000000000000007 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B00000000000000000000008 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000006 /* Project object */ = {isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 1600; TargetAttributes = { A00000000000000000000003 = { CreatedOnToolsVersion = 16.0; }; B00000000000000000000003 = { CreatedOnToolsVersion = 26.0; TestTargetID = A00000000000000000000003; }; }; }; buildConfigurationList = A00000000000000000000007; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A00000000000000000000002; packageReferences = (A00000000000000000000017 /* XCRemoteSwiftPackageReference \"Sparkle\" */,); minimizedProjectReferenceProxies = 1; preferredProjectObjectVersion = 77; productRefGroup = A00000000000000000000002; projectDirPath = ""; projectRoot = ""; targets = (C20000000000000000000002, C00000000000000000000002, A00000000000000000000003 /* OverflowBar */, B00000000000000000000003 /* OverflowBarTests */,); };
 /* End PBXProject section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,13 +109,16 @@
 /* Begin XCBuildConfiguration section */
 		A00000000000000000000008 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
 		A00000000000000000000009 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Release; };
-		A00000000000000000000010 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = OverflowBarIcon; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = OverflowBar/Resources/Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; }; name = Debug; };
+		A00000000000000000000010 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = OverflowBarIcon; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = OverflowBar/Resources/Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
 		A00000000000000000000011 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = OverflowBarIcon; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = OverflowBar/Resources/Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; }; name = Release; };
+		B00000000000000000000009 = {isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6.Tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OverflowBar.app/Contents/MacOS/OverflowBar"; }; name = Debug; };
+		B0000000000000000000000A = {isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.overflowbar.mac26.v6.Tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OverflowBar.app/Contents/MacOS/OverflowBar"; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		A00000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000010 /* Debug */, A00000000000000000000011 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		A00000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000008 /* Debug */, A00000000000000000000009 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		B00000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (B00000000000000000000009, B0000000000000000000000A); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = A00000000000000000000006 /* Project object */;

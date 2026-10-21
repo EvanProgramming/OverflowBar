@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import ApplicationServices
 import OSLog
 import Sparkle
@@ -13,20 +14,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: NSWindowController?
     private var onboardingWindowController: NSWindowController?
     private var updaterController: SPUStandardUpdaterController?
-    private var isFinishingTermination = false
-    private var didReplyToTermination = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger(subsystem: "com.overflowbar.app", category: "startup").info("Accessibility trusted: \(AXIsProcessTrusted(), privacy: .public)")
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        let testing = NSClassFromString("XCTestCase") != nil || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        if !testing { updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil) }
         NSApp.setActivationPolicy(.accessory)
+        // Hosted tests must not register controls under the installed app's autosave identities.
+        if testing { return }
         statusBarController = StatusBarController(store: store, showSettings: { [weak self] in self?.showSettings() })
         store.startMonitoring()
-        // Startup must be observational only. Restoring offscreen system
-        // items uses synthetic Command-drag events and can change WindowServer
-        // pointer state before the user has interacted with OverflowBar.
         if preferences.hasCompletedOnboarding {
             store.refresh()
+            let loginLaunch = NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: AEKeyword(keyAELaunchedAsLogInItem)) != nil
+            if !loginLaunch { DispatchQueue.main.async { [weak self] in self?.showSettings() } }
         } else {
             DispatchQueue.main.async { [weak self] in self?.showOnboarding() }
         }
@@ -37,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showSettings() {
+    func showSettings() {
         if let settingsWindowController { settingsWindowController.showWindow(nil) }
         else {
             let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 680, height: 520), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -78,7 +79,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.contentView = NSHostingView(rootView: OnboardingView(
                 store: store,
                 permissions: permissions,
-                initialHideSelectedIcons: preferences.hasCompletedOnboarding ? store.layoutManagementEnabled : true,
                 onComplete: { [weak self] hideSelectedIcons in self?.completeOnboarding(hideSelectedIcons: hideSelectedIcons) }
             ))
             window.center()
@@ -92,31 +92,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func completeOnboarding(hideSelectedIcons: Bool) {
         preferences.hasCompletedOnboarding = true
         store.refresh()
-        store.setLayoutManagementEnabled(hideSelectedIcons)
+        store.setLayoutManagementEnabled(false)
+        showSettings()
         onboardingWindowController?.close()
         onboardingWindowController = nil
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard store.layoutManagementEnabled, !store.selectedItems.isEmpty else { return .terminateNow }
-        guard !isFinishingTermination else { return .terminateLater }
-        isFinishingTermination = true
-        didReplyToTermination = false
-        statusBarController?.prepareForTermination()
-        store.prepareForTermination { [weak self, weak sender] in
-            guard let sender else { return }
-            self?.replyToTermination(sender)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self, weak sender] in
-            guard let sender else { return }
-            self?.replyToTermination(sender)
-        }
-        return .terminateLater
-    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showSettings(); return true }
 
-    private func replyToTermination(_ sender: NSApplication) {
-        guard !didReplyToTermination else { return }
-        didReplyToTermination = true
-        sender.reply(toApplicationShouldTerminate: true)
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        statusBarController?.prepareForTermination()
+        return .terminateNow
     }
 }

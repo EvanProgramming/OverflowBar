@@ -1,106 +1,29 @@
-# Architecture
+# OverflowBar native engine
 
-OverflowBar is a native Swift application that combines AppKit for status-bar/window behavior and SwiftUI for onboarding, settings, and the second-row interface.
+The menu bar contains two persistent native controls: `OverflowBarControlItem` and `OverflowBarHiddenSection`. Selected icons are arranged to the left of the divider. A 10,000-point native separator conceals that section; the arrow opens a captured, floating second row.
 
-## Data flow
+`NativeMenuBarEngine` is the serialized boundary for discovery, layout application, activation, cancellation and recovery. `MenuBarItemStore` presents state and owns preferences, not event posting. Source provenance and the exact Ice/Thaw pins are in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 
-```mermaid
-flowchart LR
-    A[Running applications] --> B[MenuBarScanner]
-    W[WindowServer metadata] --> B
-    B --> C[MenuBarItemStore]
-    C --> D[MenuBarCaptureService]
-    D -->|local icon images| C
-    C --> E[Overflow panel]
-    C --> F[Layout manager]
-    E --> G[Item activator]
-    F --> W
-    G --> A
-```
+## Identity
 
-## Components
+Persistent identities come from a resolved originating bundle and Accessibility identifier/name. Window IDs and PIDs are session handles. On macOS 26, Control Center owns the item windows: source attribution walks each application's `AXExtrasMenuBar`, prefers exact backing-window identity, and accepts only unique same-row geometric fallback. Ambiguous items stay visible and cannot be guessed click targets. On macOS 15, native window ownership also identifies the source.
 
-### App lifecycle
+## Helpers
 
-- `OverflowBarApp` provides the SwiftUI application entry point.
-- `AppDelegate` owns the shared store, creates the menu bar controller, presents onboarding/settings, and restores managed items during a normal quit.
-- `StatusBarController` owns the visible arrow and the hidden-section delimiter status items.
+Two embedded XPC services compile the shared worker implementation. `EngineWorker` performs bounded discovery/AX activation; `CaptureWorker` performs ScreenCaptureKit and private SkyLight capture. Both join the user's existing session. Separate connections prevent capture recycling from interrupting an in-flight move.
 
-### Discovery
+Every connection validates the current packaged peer's designated code-signing requirement before resume, including ad-hoc code hashes. There is no same-Team-ID requirement and no unauthenticated fallback. Requests time out after three seconds; capture interruption permits one reconnect/retry. Pixel dimensions, total payloads and requested status windows are bounded. Private capture attempts count toward recycling even when they fail.
 
-`MenuBarScanner` performs two complementary passes:
+## Layout and activation
 
-1. Window-list discovery identifies public layer-25 status-item windows, including items already moved offscreen. On macOS 26, Control Center-hosted status items may have no public `CGWindowID`; the scanner fails closed instead of treating a different generic item as OverflowBar's target.
-2. Accessibility traversal associates elements and press actions with matching frames.
+A stable native snapshot precedes automatic layout. The two-section planner keeps the divider fixed and minimizes moves with upstream LCS logic. Moves share an absolute 15-second deadline, verify fresh endpoints and settled placement, and release taps/buttons/cursor state on every exit. Automatic repeats and failed batches are rationed by the upstream circuit breaker. Only verified placement is persisted; partial results remain partial.
 
-System controls receive stable identifiers and are protected from selection. OverflowBar's own status windows are excluded.
+Activation resolves the source again, uses native AX press for Electron when advertised, otherwise posts scoped native events. Offscreen targets temporarily move beside the arrow. A delivered event is not menu success: the response verifier observes a new owner interface or item size/disappearance. An uncertain menu stays accessible. Restoration uses original neighbor identities only after a positively observed close.
 
-### State
+## Lifecycle
 
-`MenuBarItemStore` is the main-actor observable model shared by Settings and the panel. It owns selection persistence, capture generations, layout readiness, activation errors, and public UI operations.
+Desired hidden state and realized native visibility are separate. Quit shrinks the divider without erasing the preference. Manual app launch and Finder reopen display setup/overview; login startup stays in the background. The panel refreshes captured icons at at most two batches per second, only while visible. Permission denial is explicit. macOS 27+ fails open and does not run native management.
 
-`PreferencesStore` persists selected identifiers, onboarding completion, and layout state with `UserDefaults`.
+## Release acceptance
 
-### Icon capture
-
-`MenuBarCaptureService` uses ScreenCaptureKit as the primary path. A small Core Graphics compatibility path is isolated to offscreen layer-25 windows that ScreenCaptureKit cannot capture on current macOS releases.
-
-Captures happen during refresh and panel presentation, not continuously. Images stay in memory and never leave the device.
-
-### Layout management
-
-macOS does not provide a dedicated public API for third-party apps to reorder or hide arbitrary status items. `MenuBarLayoutManager` therefore reproduces the user-facing Command-drag interaction with WindowServer-targeted events.
-
-The expanding hidden delimiter creates an offscreen managed section to the left of the OverflowBar arrow. Every layout pass excludes live protected-system window IDs and verifies those controls before and after moving selected items.
-
-The release bundle uses a fresh compatibility bundle identifier
-(`com.overflowbar.mac26.v6`) because macOS 26 can retain a blocked Control
-Center host for an older identifier. `PreferencesStore` migrates user
-selections and onboarding state from the previous identifiers while
-deliberately leaving stale WindowServer and status-item placement keys behind.
-On macOS 26, the arrow host is registered first and the staging host is
-created only after Control Center has attached the first scene; registering
-both synchronously can put both hosts in Control Center's blocked list. A
-newly installed identity therefore receives its own Accessibility and Screen
-Recording authorization.
-
-### Activation
-
-`MenuBarItemActivator` prefers `AXPress`. When direct activation is unavailable, the layout manager temporarily reveals the original item, activates it, and re-hides it after the next user interaction or a bounded timeout.
-
-### macOS 27 compatibility boundary
-
-macOS 27 introduces a native overflow affordance and no longer guarantees one
-WindowServer layer-25 window per status item. The legacy WindowServer drag path
-is therefore disabled on macOS 27. The scanner first attempts to resolve
-individual Accessibility menu-bar children, and the layout manager changes only
-an element whose Accessibility position is explicitly settable. Items that are
-only represented by Apple's composite host are left under the system's native
-overflow behavior; OverflowBar does not send a synthetic drag to that host.
-
-Targeted events preserve the physical cursor position and validate the final window position before reporting success.
-
-### Presentation
-
-`OverflowPanelController` owns a borderless non-activating `NSPanel` at status-bar level. It chooses the anchor's screen, respects safe-area insets, and closes on outside interaction.
-
-`OverflowPanelView` renders:
-
-- Liquid Glass and materialize transitions on macOS 26+
-- an ultra-thin material capsule on macOS 15
-- spring transitions and item feedback, with Reduce Motion fallbacks
-- horizontal scrolling when content exceeds the display-safe width
-
-## Permissions and trust boundaries
-
-| Capability | API | Permission |
-| --- | --- | --- |
-| Discover and press accessible controls | Accessibility | Accessibility |
-| Capture current status-item icons | ScreenCaptureKit / Core Graphics | Screen Recording |
-| Start at login | ServiceManagement | User confirmation through app settings |
-
-OverflowBar performs all discovery, capture, layout, and activation locally.
-
-## Compatibility boundary
-
-The menu bar layout is an OS implementation detail rather than a stable third-party API. Window layers, event delivery, and Accessibility exposure can change between macOS releases. CI validates compilation on the supported deployment target, while release verification also requires live macOS testing.
+Builds and generic fallback icons cannot establish GUI reliability. The [validation checklist](NATIVE_VALIDATION.md) requires actual native hiding, real recognizable previews, intended menus, 100 cycles and a two-hour soak on macOS 15 and 26.4. v1.5.0 remains unpublished until those gates pass.

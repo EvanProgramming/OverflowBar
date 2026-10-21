@@ -38,9 +38,10 @@ The current community release is ad-hoc signed and not Apple-notarized. This
 means Homebrew can install it, but macOS may block the first launch. If that
 happens, Control-click **OverflowBar** in Applications and choose **Open**.
 
-OverflowBar still requires Accessibility and Screen Recording permissions. The
-app's onboarding opens the relevant System Settings pages; Homebrew cannot grant
-those permissions on the user's behalf.
+Accessibility is required for automatic icon arrangement and native clicks.
+Screen Recording enables genuine previews. Without these grants, setup reports
+a limited state. Homebrew cannot grant permissions on
+the user's behalf.
 
 ## Release maintenance
 

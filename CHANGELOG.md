@@ -1,6 +1,12 @@
 # Changelog
 
-All notable user-visible changes to OverflowBar are documented here.
+## 1.5.0 — candidate
+
+- Replace manual grouping with the GPL Ice/Thaw native-item engine port.
+- Restore per-icon selection, native arrangement, source-aware discovery and native menus from the second row.
+- Isolate discovery and recyclable capture in authenticated ad-hoc XPC services.
+- Separate desired visibility from quit cleanup; manual launch/reopen shows overview.
+- Release remains gated on actual native GUI checks, 100 cycles and a two-hour soak.
 
 ## [Unreleased]
 

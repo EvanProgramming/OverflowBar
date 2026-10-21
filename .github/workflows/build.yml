@@ -22,15 +22,22 @@ jobs:
         run: |
           plutil -lint OverflowBar/Resources/Info.plist
           bash -n scripts/create-dmg.sh
+          bash scripts/check-native-engine.sh
+          python3 scripts/test-controlcenter-repair.py
           bash scripts/validate-homebrew-cask.sh
           ruby scripts/check-doc-links.rb
       - name: Build Debug
         run: >-
           xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar
           -configuration Debug -destination 'generic/platform=macOS'
-          -derivedDataPath .ci-build CODE_SIGNING_ALLOWED=NO build
+          -derivedDataPath .ci-build CODE_SIGN_IDENTITY="-" build
+      - name: Run macOS XCTest suite
+        run: >-
+          xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar
+          -configuration Debug -destination 'platform=macOS'
+          -derivedDataPath .ci-build CODE_SIGN_IDENTITY="-" test
       - name: Build Release
         run: >-
           xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar
           -configuration Release -destination 'generic/platform=macOS'
-          -derivedDataPath .ci-release CODE_SIGNING_ALLOWED=NO build
+          -derivedDataPath .ci-release CODE_SIGN_IDENTITY="-" ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO build

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import ScreenCaptureKit
 
 @MainActor
 final class PermissionManager: ObservableObject {
@@ -22,12 +23,9 @@ final class PermissionManager: ObservableObject {
     func requestScreenRecording() {
         refresh()
         guard !screenRecordingGranted else { return }
-        // Ask TCC first so supported app identities get the native prompt.
-        // Ad-hoc/background builds may not be promptable on macOS 26; in that
-        // case, open the exact pane so the user can add or enable this build.
-        _ = CGRequestScreenCaptureAccess()
-        refresh()
-        if !screenRecordingGranted { openScreenRecordingSettings() }
+        SCShareableContent.getWithCompletionHandler { _, _ in
+            Task { @MainActor in self.refresh() }
+        }
     }
 
     func openAccessibilitySettings() { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }

@@ -21,11 +21,12 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
 4. Build Debug and Release configurations.
 5. Run live checks:
    - arrow is present
-   - selected third-party items are managed
-   - protected system items remain visible
+   - selected native icons can be automatically arranged and hidden/revealed
    - second row opens and closes
-   - direct and temporary-reveal activation work
-   - Safe Reset and normal quit restore the layout
+   - genuine previews load and fresh AX/native activation opens the intended interface; uncertain items remain accessible
+   - Safe Reset and normal quit reveal the group
+   - macOS 27 leaves hiding disabled
+   - 100 complete panel/activation cycles and a two-hour soak complete without input interference or resource growth
 6. Build and verify the DMG and updater ZIP:
 
    ```bash
@@ -59,3 +60,7 @@ the signed appcast, and creates the GitHub Release with all updater assets.
 ## Signing
 
 `scripts/create-dmg.sh` uses `DEVELOPER_ID_APPLICATION` when provided. Without it, the script creates an ad-hoc signed community build. Notarization must be added before describing a release as Gatekeeper-ready.
+
+## v1.5 publication gate
+
+Run the [native validation matrix](NATIVE_VALIDATION.md) before tagging or publishing. Generic placeholders, a widened divider, passing unit tests or a signed DMG are not native GUI evidence. Keep signed Sparkle generation in release CI. Package both ad-hoc XPC services and verify their current designated requirements from the installed application.

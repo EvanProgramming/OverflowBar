@@ -68,6 +68,7 @@ final class MenuBarItem: Identifiable {
     var ownerName: String
     var bundleIdentifier: String?
     let frame: CGRect
+    var nativeRecord: EngineItemRecord?
     var axElement: AXUIElement?
     var supportsPressAction: Bool
     let windowID: CGWindowID?
@@ -75,9 +76,8 @@ final class MenuBarItem: Identifiable {
     var isProtectedSystemItem: Bool
     var iconImage: NSImage?
     let applicationIcon: NSImage?
-    var isSelected: Bool
 
-    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, applicationIcon: NSImage? = nil, isSelected: Bool, supportsPressAction: Bool, windowID: CGWindowID? = nil, ownerPID: pid_t? = nil, isProtectedSystemItem: Bool = false) {
+    init(id: String, title: String, ownerName: String, bundleIdentifier: String?, frame: CGRect, axElement: AXUIElement?, iconImage: NSImage? = nil, applicationIcon: NSImage? = nil, supportsPressAction: Bool, windowID: CGWindowID? = nil, ownerPID: pid_t? = nil, isProtectedSystemItem: Bool = false) {
         self.id = id
         self.title = title
         self.ownerName = ownerName
@@ -86,7 +86,6 @@ final class MenuBarItem: Identifiable {
         self.axElement = axElement
         self.iconImage = iconImage
         self.applicationIcon = applicationIcon
-        self.isSelected = isSelected
         self.supportsPressAction = supportsPressAction
         self.windowID = windowID
         self.ownerPID = ownerPID
@@ -99,7 +98,7 @@ final class MenuBarItem: Identifiable {
     /// light OverflowBar panel/settings surface; application-owned images keep
     /// their original colors.
     var usesTemplateIcon: Bool {
-        iconImage != nil && (ownerName == "Control Center" || isProtectedSystemItem)
+        iconImage != nil && (iconImage?.isTemplate == true || ownerName == "Control Center" || isProtectedSystemItem)
     }
     var isAlwaysVisibleSystemItem: Bool {
         guard isProtectedSystemItem else { return false }
@@ -110,7 +109,7 @@ final class MenuBarItem: Identifiable {
     var displayImage: NSImage? { iconImage ?? applicationIcon }
     /// The activation path used by the item. WindowServer-backed items do not
     /// expose an Accessibility press action, but they can still be activated
-    /// directly without moving the user's cursor or waiting for AX traversal.
+    /// using native mouse events after resolving their source application.
     var activationStatusSymbolName: String {
         if supportsPressAction { return "hand.tap" }
         if windowID != nil { return "bolt.fill" }

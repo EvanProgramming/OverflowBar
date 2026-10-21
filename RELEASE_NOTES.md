@@ -1,62 +1,9 @@
-# OverflowBar 1.0.19 — In-App Updates
+# OverflowBar v1.5.0 candidate — native engine replacement
 
-OverflowBar 1.0.19 adds signed in-app updates so future releases can be
-installed from OverflowBar Settings without manually downloading another
-GitHub release.
+This candidate replaces the manual-grouping backend with a focused Ice/Thaw engine port. It restores per-icon selection, native drag arrangement, correctly attributed source applications, genuine second-row previews and native-menu activation.
 
-The existing macOS 26 compatibility and menu-bar layout fixes remain included.
+The app retains its bundle identity, status autosave names, ad-hoc signing, login preference and signed Sparkle updates. v1.5 adopts GPL-3.0 with upstream provenance. Manual launch reopens setup/overview, and quit reveals originals without clearing the desired hidden state.
 
-## Fixed
+Accessibility is required for automatic arrangement and activation. Screen Recording enables genuine previews. Native operations can move the pointer. Timeouts, cancellation, response verification and an automatic-move circuit breaker replace unbounded retries and the former staging target.
 
-- Stabilized Control Center composite-host detection on macOS 26 so layout
-  operations target real draggable status-item windows.
-- Preserved automatic-hide requests across WindowServer refreshes and
-  re-scanned after application activation so newly-created menu-bar windows
-  are hidden again.
-- Extended bounded startup retries for newly-installed ad-hoc builds and kept
-  synthetic drag points on an active display.
-- Added Sparkle-backed update checks, release notes, signed updater archives,
-  and a manual confirmation step before installation.
-
-## Verification
-
-- Installed `/Applications/OverflowBar.app` on macOS 26 and completed a clean
-  single-instance run.
-- Captured real menu-bar icons through the macOS 26 compatibility path.
-- Verified successful hide moves for the selected icons and subsequent re-hide
-  after activation.
-- Release build, DMG verification, updater ZIP verification, and SHA-256 checks
-  are included with the release assets.
-
-## Important for affected users
-
-- This community build is ad-hoc signed and is not notarized with an Apple
-  Developer ID. macOS may require Control-click → **Open** on first launch.
-- Because ad-hoc builds have a new code-signing identity, macOS may require
-  fresh Accessibility and Screen Recording authorization for this version.
-  Open OverflowBar Settings and use **Request** for each permission if the
-  status is not granted.
-- Do not use an older `com.overflowbar.app` copy at the same time. Replace it
-  with this build in `/Applications` before granting permissions.
-
-## Install
-
-1. Download `OverflowBar-1.0.19.dmg` below.
-2. Drag OverflowBar to Applications and replace the older copy.
-3. Open OverflowBar, complete the Accessibility and Screen Recording requests,
-   then select the menu-bar items to move into the overflow panel.
-
-### Homebrew
-
-```bash
-brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
-brew install --cask EvanProgramming/overflowbar/overflowbar
-```
-
-## Compatibility
-
-- macOS 15 or later; macOS 26 uses the Liquid Glass compatibility path.
-- Universal DMG (arm64 + x86_64) with the production compatibility bundle
-  identifier `com.overflowbar.mac26.v6`.
-- Accessibility and Screen Recording permissions are required for the complete
-  experience.
+**Not released:** physical macOS 15/26.4 validation, real native-menu cycles, helper permission attribution and the two-hour soak must pass first. See [release gates](docs/NATIVE_VALIDATION.md). Generic placeholders and an expanded separator do not count as proof.

@@ -1,242 +1,51 @@
-import AppKit
 import ApplicationServices
 
-final class MenuBarItemActivator {
-    private var relays: [MenuBarEventRelay] = []
+enum MenuBarActivationResult: Equatable {
+    case activated
+    case itemChanged
+    case unobserved
+    case awaitingManualInterface
+    case manualFallback
+    case unavailable
 
-    func activateDirectly(_ item: MenuBarItem) -> Bool {
-        guard let axElement = item.axElement, item.supportsPressAction else { return false }
-        return AXUIElementPerformAction(axElement, kAXPressAction as CFString) == .success
-    }
-
-    func activateViaAccessibilityHitTest(_ item: MenuBarItem) -> Bool {
-        let system = AXUIElementCreateSystemWide()
-        var value: AXUIElement?
-        // MenuBarScanner receives Quartz window bounds (origin at the top
-        // left), while Accessibility hit testing uses AppKit screen space
-        // (origin at the bottom left). Passing the raw Quartz y-coordinate
-        // makes the hit test land near the bottom of the display.
-        guard let screen = NSScreen.screens.first(where: { $0.frame.minX <= item.frame.midX && $0.frame.maxX >= item.frame.midX }) ?? NSScreen.main else { return false }
-        let rawPoint = CGPoint(x: item.frame.midX, y: item.frame.midY)
-        let convertedPoint = CGPoint(x: item.frame.midX, y: screen.frame.maxY - item.frame.midY)
-        let points = item.windowID == nil ? [rawPoint, convertedPoint] : [convertedPoint, rawPoint]
-        for point in points {
-            value = nil
-            guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &value) == .success,
-                  let element = value else { continue }
-            if AXUIElementPerformAction(element, kAXPressAction as CFString) == .success { return true }
-        }
-        return false
-    }
-
-    /// Clicks an item after it has been temporarily moved into the visible menu bar.
-    func activateMovedItem(_ item: MenuBarItem, mouseButton: CGMouseButton = .left, completion: @escaping (Bool) -> Void) {
-        if mouseButton == .right {
-            activateRightClick(item, completion: completion)
-            return
-        }
-        // Control Center hosts modern status items in a protected scene. Its
-        // window can be replaced during the reveal, so constructing a click
-        // from the stale item window would fail before the visible click path
-        // is reached. Resolve a fresh screen point first and use the same
-        // session event shape as a physical click.
-        if let ownerPID = item.ownerPID, isControlCenter(ownerPID),
-           let source = eventSource(for: ownerPID), let point = visiblePoint(for: item),
-           let visibleDown = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
-           let visibleUp = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) {
-            visibleDown.setIntegerValueField(.mouseEventClickState, value: 1)
-            visibleUp.setIntegerValueField(.mouseEventClickState, value: 1)
-            visibleDown.post(tap: .cgSessionEventTap)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                visibleUp.post(tap: .cgSessionEventTap)
-                completion(true)
-            }
-            return
-        }
-        if let windowID = item.windowID, let ownerPID = item.ownerPID,
-           let source = eventSource(for: ownerPID),
-           let down = targetedEvent(type: .leftMouseDown, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left),
-           let up = targetedEvent(type: .leftMouseUp, item: item, windowID: windowID, pid: ownerPID, source: source, mouseButton: .left) {
-            // Route the event through a short-lived relay. The relay forwards
-            // it to the owner process and consumes the session copy, so other
-            // applications never receive a synthetic click at this item's
-            // screen coordinate.
-            postIsolated(down, to: ownerPID) { [weak self] success in
-                guard success else { completion(false); return }
-                guard let self else { completion(false); return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                    self.postIsolated(up, to: ownerPID, completion: completion)
-                }
-            }
-            return
-        }
-        completion(false)
-    }
-
-    /// Sends a right-click to an item that is already visible. Accessibility
-    /// exposes AXPress only (left-click semantics), so context-menu items
-    /// need a real right mouse event instead.
-    func activateRightClick(_ item: MenuBarItem, completion: @escaping (Bool) -> Void) {
-        activateRightClick(item, attempt: 0, completion: completion)
-    }
-
-    private func activateRightClick(_ item: MenuBarItem, attempt: Int, completion: @escaping (Bool) -> Void) {
-        guard let source = item.ownerPID.flatMap(eventSource(for:)) else { completion(false); return }
-        guard let point = visiblePoint(for: item) else {
-            // WindowServer can publish the new frame a few ticks after the
-            // reveal verification callback. Retry the lookup briefly instead
-            // of reporting a false activation failure or using an old frame.
-            guard attempt < 2 else { completion(false); return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
-                self?.activateRightClick(item, attempt: attempt + 1, completion: completion)
-            }
-            return
-        }
-        guard isValidMenuBarPoint(point) else { completion(false); return }
-        guard let down = CGEvent(mouseEventSource: source, mouseType: .rightMouseDown, mouseCursorPosition: point, mouseButton: .right),
-              let up = CGEvent(mouseEventSource: source, mouseType: .rightMouseUp, mouseCursorPosition: point, mouseButton: .right) else { completion(false); return }
-        down.setIntegerValueField(.mouseEventClickState, value: 1)
-        up.setIntegerValueField(.mouseEventClickState, value: 1)
-        postIsolated(down, to: item.ownerPID) { [weak self] success in
-            guard success else { completion(false); return }
-            guard let self else { completion(false); return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                self.postIsolated(up, to: item.ownerPID, completion: completion)
-            }
+    func layoutMessage(groupHidden: Bool) -> String? {
+        switch self {
+        case .itemChanged:
+            "The native item changed. Hide the group again when you are ready."
+        case .awaitingManualInterface:
+            "Native icons are revealed. Click the original item; OverflowBar will restore the layout after its menu closes."
+        case .unobserved where !groupHidden, .manualFallback where !groupHidden:
+            "Native icons are revealed. Click the original item, then hide the group again when ready."
+        default:
+            nil
         }
     }
+}
 
-    private func postIsolated(_ event: CGEvent, to pid: pid_t?, completion: @escaping (Bool) -> Void) {
-        guard let pid else { completion(false); return }
-        var relay: MenuBarEventRelay?
-        relay = MenuBarEventRelay(event: event, pid: pid) { [weak self] success in
-            if let relay {
-                self?.relays.removeAll { $0 === relay }
-            }
-            completion(success)
-        }
-        guard let relay else {
-            completion(false)
-            return
-        }
-        relays.append(relay)
-        relay.start()
+enum AccessibilityTargetResolution {
+    case unique(AXUIElement)
+    case ambiguous
+    case unavailable
+
+    static func classify(count: Int, element: AXUIElement?) -> AccessibilityTargetResolution {
+        guard count > 0 else { return .unavailable }
+        guard count == 1, let element else { return .ambiguous }
+        return .unique(element)
+    }
+}
+
+enum MenuBarItemActivator {
+    static func outcome(advertised: Bool, succeeded: Bool) -> MenuBarActivationResult {
+        advertised && succeeded ? .activated : .manualFallback
     }
 
-    private func targetedEvent(type: CGEventType, item: MenuBarItem, windowID: CGWindowID, pid: pid_t, source: CGEventSource, mouseButton: CGMouseButton) -> CGEvent? {
-        // Never fall back to item.frame here: for a hidden item that frame is
-        // intentionally negative, and WindowServer clamps it to (0, 0),
-        // which opens the Apple menu instead of the requested status item.
-        guard let frame = currentFrame(windowID: windowID), frame.maxX > 0 else { return nil }
-        let point = CGPoint(x: frame.midX, y: frame.midY)
-        guard isValidMenuBarPoint(point) else { return nil }
-        guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: mouseButton) else { return nil }
-        if NSRunningApplication(processIdentifier: pid)?.bundleIdentifier != "com.apple.controlcenter" {
-            event.setIntegerValueField(.eventTargetUnixProcessID, value: Int64(pid))
-        }
-        event.setIntegerValueField(.eventSourceUserData, value: Int64.random(in: 1...Int64.max))
-        event.setIntegerValueField(.mouseEventClickState, value: 1)
-        event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(windowID))
-        event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(windowID))
-        event.setIntegerValueField(CGEventField(rawValue: 0x33)!, value: Int64(windowID))
-        return event
+    static func perform(_ element: AXUIElement, contextMenu: Bool = false) -> MenuBarActivationResult {
+        AXUIElementSetMessagingTimeout(element, 0.25)
+        var actions: CFArray?
+        guard AXUIElementCopyActionNames(element, &actions) == .success,
+              let names = actions as? [String] else { return .manualFallback }
+        let action = contextMenu ? kAXShowMenuAction as String : kAXPressAction as String
+        let advertised = names.contains(action)
+        return outcome(advertised: advertised, succeeded: advertised && AXUIElementPerformAction(element, action as CFString) == .success)
     }
-
-    private func isValidMenuBarPoint(_ point: CGPoint) -> Bool {
-        guard point.x.isFinite, point.y.isFinite else { return false }
-        return activeDisplayBounds().contains { display in
-            display.contains(point) && point.y >= display.minY && point.y <= display.minY + 50
-        }
-    }
-
-    private func eventSource(for pid: pid_t) -> CGEventSource? {
-        // Control Center ignores Command-drag events generated from the
-        // private source, even though the same event is accepted from the
-        // HID source. Keep the private source for ordinary applications so
-        // their windows never observe synthetic global input.
-        let state: CGEventSourceStateID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
-            ? .hidSystemState
-            : .privateState
-        return CGEventSource(stateID: state)
-    }
-
-    private func isControlCenter(_ pid: pid_t) -> Bool {
-        NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.controlcenter"
-    }
-
-    /// Resolves a fresh WindowServer frame before every synthetic event. The
-    /// Control Center process can rebuild a status-item window while the item
-    /// remains logically the same. If the original window number disappeared,
-    /// choose the nearest visible layer-25 window owned by that process rather
-    /// than sending a stale event to (0, 0).
-    private func visiblePoint(for item: MenuBarItem) -> CGPoint? {
-        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        let records: [(id: CGWindowID, pid: pid_t, title: String, frame: CGRect)] = windows.compactMap { info in
-            guard MenuBarWindowServer.isStatusItemLayer(info),
-                  let id = MenuBarWindowServer.integer(kCGWindowNumber as String, in: info),
-                  let pid = MenuBarWindowServer.integer(kCGWindowOwnerPID as String, in: info),
-                  let frame = MenuBarWindowServer.bounds(in: info) else { return nil }
-            guard isVisibleMenuBarFrame(frame) else { return nil }
-            let title = (info[kCGWindowName as String] as? String) ?? ""
-            return (CGWindowID(id), pid_t(pid), title, frame)
-        }
-        if let windowID = item.windowID,
-           let exact = records.first(where: { $0.id == windowID }) {
-            return CGPoint(x: exact.frame.midX, y: exact.frame.midY)
-        }
-        if let ownerPID = item.ownerPID {
-            // Control Center may replace a status-item window while it is
-            // being revealed. Prefer the status item's published title before
-            // falling back to geometry; otherwise the first visible generic
-            // Item-0 window can receive the click instead.
-            if item.title != "Menu Bar Item",
-               let titled = records.first(where: { $0.pid == ownerPID && $0.title == item.title }) {
-                return CGPoint(x: titled.frame.midX, y: titled.frame.midY)
-            }
-            let preferredX = item.frame.midX
-            return records
-                .filter { $0.pid == ownerPID }
-                .min(by: { abs($0.frame.midX - preferredX) < abs($1.frame.midX - preferredX) })
-                .map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) }
-        }
-        if #available(macOS 27.0, *), isValidMenuBarPoint(CGPoint(x: item.frame.midX, y: item.frame.midY)) {
-            // A composite macOS 27 host may not publish a small layer-25
-            // window at all. The AX element's current frame is the safer
-            // coordinate for an already-visible context-menu click.
-            return CGPoint(x: item.frame.midX, y: item.frame.midY)
-        }
-        // AX-backed items do not carry a window number. This fallback is only
-        // allowed for an already-visible positive frame; hidden items take
-        // the reveal path in MenuBarItemStore instead.
-        let fallback = CGPoint(x: item.frame.midX, y: item.frame.midY)
-        if isValidMenuBarPoint(fallback) { return fallback }
-        guard let screen = NSScreen.screens.first(where: {
-            $0.frame.minX <= item.frame.midX && $0.frame.maxX >= item.frame.midX
-        }) ?? NSScreen.main else { return nil }
-        let converted = CGPoint(x: item.frame.midX, y: screen.frame.maxY - item.frame.midY)
-        return isValidMenuBarPoint(converted) ? converted : nil
-    }
-
-    private func isVisibleMenuBarFrame(_ frame: CGRect) -> Bool {
-        guard frame.width > 4, frame.height > 4, frame.height <= 40 else { return false }
-        return activeDisplayBounds().contains { display in
-            frame.intersects(display) && abs(frame.minY - display.minY) <= 2
-        }
-    }
-
-    private func activeDisplayBounds() -> [CGRect] {
-        var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
-        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
-        return displays.prefix(Int(count)).map(CGDisplayBounds)
-    }
-
-    private func currentFrame(windowID: CGWindowID) -> CGRect? {
-        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-        guard let window = windows.first(where: { MenuBarWindowServer.integer(kCGWindowNumber as String, in: $0) == Int(windowID) }),
-              let frame = MenuBarWindowServer.bounds(in: window) else { return nil }
-        return frame
-    }
-
 }
