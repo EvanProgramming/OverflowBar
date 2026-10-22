@@ -253,21 +253,22 @@ struct MenuBarIconSelectionList: View {
     let allowsSelection: Bool
     let onRefresh: () -> Void
     let onSelectionChange: (MenuBarItem, Bool) -> Void
+    var selectableItems: [MenuBarItem] { items.filter { !$0.isProtectedSystemItem } }
 
     var body: some View {
         GroupBox {
             VStack(spacing: 0) {
-                if items.isEmpty {
+                if selectableItems.isEmpty {
                     ContentUnavailableView {
-                        Label("No Menu Bar Icons", systemImage: "menubar.rectangle")
+                        Label("No Available Menu Bar Icons", systemImage: "menubar.rectangle")
                     } description: {
-                        Text("Open an app with a menu bar icon, then refresh the list.")
+                        Text(items.isEmpty ? "Open an app with a menu bar icon, then refresh the list." : "System icons managed by macOS stay in the menu bar and aren't shown here.")
                     } actions: {
                         Button("Refresh Icons", action: onRefresh)
                     }
                     .padding(.vertical, 12)
                 } else {
-                    ForEach(items) { item in
+                    ForEach(selectableItems) { item in
                         HStack(spacing: 12) {
                             icon(for: item)
                             VStack(alignment: .leading, spacing: 2) {
@@ -287,7 +288,7 @@ struct MenuBarIconSelectionList: View {
                             .disabled(!allowsSelection || item.isProtectedSystemItem || item.nativeRecord?.persistentID == nil)
                         }
                         .padding(.vertical, 7)
-                        if item.id != items.last?.id { Divider() }
+                        if item.id != selectableItems.last?.id { Divider() }
                     }
                 }
             }
