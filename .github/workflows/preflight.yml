@@ -1,0 +1,208 @@
+name: Release preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate version from OverflowBar/Resources/Info.plist
+        required: true
+        default: 1.5.0
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Xcode 26 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version | tee "$RUNNER_TEMP/xcode-version.txt"
+          grep -Eq '^Xcode 26[.]' "$RUNNER_TEMP/xcode-version.txt"
+
+      - name: Validate metadata and scripts
+        shell: bash
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test "$CANDIDATE_VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' OverflowBar/Resources/Info.plist)"
+          plutil -lint OverflowBar/Resources/Info.plist EngineWorker/Info.plist
+          for script in scripts/create-dmg.sh scripts/build-native-fixture.sh scripts/validate-homebrew-cask.sh; do
+            bash -n "$script"
+          done
+          bash scripts/check-native-engine.sh
+          bash scripts/validate-homebrew-cask.sh
+          ruby scripts/check-doc-links.rb
+
+      - name: Build Debug and run XCTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar \
+            -configuration Debug -destination 'platform=macOS' \
+            -derivedDataPath .preflight-debug CODE_SIGN_IDENTITY=- test
+
+      - name: Build package and verify signatures
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          DERIVED_DATA: ${{ runner.temp }}/overflowbar-preflight-release
+          OUTPUT_DIR: ${{ runner.temp }}/overflowbar-preflight-artifacts
+          SKIP_FINDER_LAYOUT: "1"
+        run: |
+          set -euo pipefail
+          ./scripts/create-dmg.sh
+          app="$DERIVED_DATA/Build/Products/Release/OverflowBar.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          hdiutil verify "$OUTPUT_DIR/OverflowBar-$VERSION.dmg"
+          (cd "$OUTPUT_DIR" && shasum -a 256 -c "OverflowBar-$VERSION.dmg.sha256")
+          unzip -Z1 "$OUTPUT_DIR/OverflowBar-$VERSION.zip" | grep -Fx 'OverflowBar.app/Contents/Info.plist'
+          if unzip -Z1 "$OUTPUT_DIR/OverflowBar-$VERSION.zip" | grep -v '^OverflowBar\.app/' | grep -q .; then
+            echo 'Updater ZIP contains files outside OverflowBar.app' >&2
+            exit 1
+          fi
+          for binary in "$app/Contents/MacOS/OverflowBar" \
+            "$app/Contents/XPCServices/EngineWorker.xpc/Contents/MacOS/EngineWorker" \
+            "$app/Contents/XPCServices/CaptureWorker.xpc/Contents/MacOS/CaptureWorker"; do
+            archs=" $(lipo -archs "$binary") "
+            [[ "$archs" == *' arm64 '* && "$archs" == *' x86_64 '* ]]
+            xcrun vtool -show-build "$binary" | grep -q 'minos 15.0'
+          done
+
+      - name: Prepare v1.0.19 compatibility rehearsal
+        shell: bash
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/overflowbar-preflight-release
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          old_dir="$RUNNER_TEMP/overflowbar-1.0.19"
+          mkdir -p "$old_dir"
+          curl --fail --location --retry 3 \
+            https://github.com/EvanProgramming/OverflowBar/releases/download/v1.0.19/OverflowBar-1.0.19.zip \
+            --output "$old_dir/OverflowBar-1.0.19.zip"
+          ditto -x -k "$old_dir/OverflowBar-1.0.19.zip" "$old_dir"
+          old_app="$old_dir/OverflowBar.app"
+          new_app="$DERIVED_DATA/Build/Products/Release/OverflowBar.app"
+          codesign --verify --deep --strict "$old_app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$old_app/Contents/Info.plist")" = 1.0.19
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$new_app/Contents/Info.plist")" = "$VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$old_app/Contents/Info.plist")" = com.overflowbar.mac26.v6
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$new_app/Contents/Info.plist")" = com.overflowbar.mac26.v6
+          test "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$old_app/Contents/Info.plist")" = https://github.com/EvanProgramming/OverflowBar/releases/latest/download/appcast.xml
+          test "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$new_app/Contents/Info.plist")" = https://github.com/EvanProgramming/OverflowBar/releases/latest/download/appcast.xml
+          old_key=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$old_app/Contents/Info.plist")
+          new_key=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$new_app/Contents/Info.plist")
+          test "$old_key" = "$new_key"
+          old_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$old_app/Contents/Info.plist")
+          new_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$new_app/Contents/Info.plist")
+          [[ "$old_build" =~ ^[0-9]+$ && "$new_build" =~ ^[0-9]+$ ]]
+          test "$new_build" -gt "$old_build"
+          sparkle_source="$DERIVED_DATA/SourcePackages/checkouts/sparkle"
+          xcodebuild -project "$sparkle_source/Sparkle.xcodeproj" \
+            -scheme sparkle-cli -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/overflowbar-sparkle-cli" \
+            CODE_SIGN_IDENTITY=- build
+
+      - name: Sign update and rehearse v1.0.19 to candidate installation
+        shell: bash
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+          VERSION: ${{ inputs.version }}
+          DERIVED_DATA: ${{ runner.temp }}/overflowbar-preflight-release
+          OUTPUT_DIR: ${{ runner.temp }}/overflowbar-preflight-artifacts
+        run: |
+          set -euo pipefail
+          test -n "$SPARKLE_ED_KEY"
+          sparkle_dir="$RUNNER_TEMP/sparkle-2.9.6"
+          mkdir -p "$sparkle_dir"
+          curl --fail --location --retry 3 \
+            https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz \
+            --output "$RUNNER_TEMP/Sparkle-2.9.6.tar.xz"
+          tar -xJf "$RUNNER_TEMP/Sparkle-2.9.6.tar.xz" -C "$sparkle_dir"
+          appcast_tool="$sparkle_dir/bin/generate_appcast"
+          sign_tool="$sparkle_dir/bin/sign_update"
+          old_app="$RUNNER_TEMP/overflowbar-1.0.19/OverflowBar.app"
+          new_app="$DERIVED_DATA/Build/Products/Release/OverflowBar.app"
+          new_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$new_app/Contents/Info.plist")
+          sparkle_cli="$RUNNER_TEMP/overflowbar-sparkle-cli/Build/Products/Release/sparkle.app/Contents/MacOS/sparkle"
+          archive="$OUTPUT_DIR/OverflowBar-$VERSION.zip"
+          feed_dir="$RUNNER_TEMP/overflowbar-update-feed"
+          mkdir -p "$feed_dir"
+          cp "$archive" "$feed_dir/"
+          cp RELEASE_NOTES.md "$feed_dir/OverflowBar-$VERSION.md"
+          archive_signature="$(printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sign_tool" --ed-key-file - -p "$archive")"
+          printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sign_tool" --ed-key-file - --verify "$archive" "$archive_signature"
+
+          server_info="$RUNNER_TEMP/overflowbar-update-server-port"
+          env -u SPARKLE_ED_KEY python3 - "$feed_dir" "$server_info" > "$RUNNER_TEMP/overflowbar-update-server.log" 2>&1 <<'PY' &
+          import http.server
+          import pathlib
+          import sys
+
+          output_dir = pathlib.Path(sys.argv[1])
+          port_file = pathlib.Path(sys.argv[2])
+          server = http.server.ThreadingHTTPServer(
+              ("127.0.0.1", 0),
+              lambda *args, **kwargs: http.server.SimpleHTTPRequestHandler(
+                  *args, directory=str(output_dir), **kwargs
+              ),
+          )
+          port_file.write_text(str(server.server_address[1]))
+          server.serve_forever()
+          PY
+          server_pid=$!
+          cleanup() { kill "$server_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for _ in {1..40}; do
+            [[ -s "$server_info" ]] && break
+            sleep 0.25
+          done
+          test -s "$server_info"
+          port="$(cat "$server_info")"
+          feed_url="http://127.0.0.1:$port/appcast.xml"
+          printf '%s\n' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$appcast_tool" \
+            --account overflowbar \
+            --ed-key-file - \
+            --embed-release-notes \
+            --download-url-prefix "http://127.0.0.1:$port/" \
+            "$feed_dir"
+          feed="$feed_dir/appcast.xml"
+          cp "$feed" "$OUTPUT_DIR/appcast.xml"
+          printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sign_tool" --ed-key-file - --verify "$feed"
+          cp "$archive" "$RUNNER_TEMP/tampered.zip"
+          printf x >> "$RUNNER_TEMP/tampered.zip"
+          if printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sign_tool" --ed-key-file - --verify "$RUNNER_TEMP/tampered.zip" "$archive_signature"; then
+            echo 'Sparkle accepted a tampered updater archive' >&2
+            exit 1
+          fi
+          cp "$feed" "$RUNNER_TEMP/tampered-appcast.xml"
+          python3 -c 'from pathlib import Path; p=Path("'"$RUNNER_TEMP"'/tampered-appcast.xml"); d=p.read_bytes(); assert b"sparkle:version=" in d; p.write_bytes(d.replace(b"sparkle:version=", b"sparkle:versioX=", 1))'
+          if printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sign_tool" --ed-key-file - --verify "$RUNNER_TEMP/tampered-appcast.xml"; then
+            echo 'Sparkle accepted a tampered appcast' >&2
+            exit 1
+          fi
+
+          unset SPARKLE_ED_KEY
+          curl --fail --silent "$feed_url" >/dev/null
+          "$sparkle_cli" --probe --feed-url "$feed_url" \
+            --user-agent-name OverflowBar-Release-Preflight "$old_app"
+          "$sparkle_cli" --check-immediately --feed-url "$feed_url" \
+            --user-agent-name OverflowBar-Release-Preflight "$old_app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$old_app/Contents/Info.plist")" = "$VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$old_app/Contents/Info.plist")" = "$new_build"
+          codesign --verify --deep --strict "$old_app"
+
+      - name: Retain nonpublishing preflight artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OverflowBar-${{ inputs.version }}-preflight
+          path: ${{ runner.temp }}/overflowbar-preflight-artifacts/
+          if-no-files-found: error
+          retention-days: 7
