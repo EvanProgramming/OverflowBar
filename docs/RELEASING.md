@@ -73,6 +73,6 @@ branch so the documented Homebrew tap receives it.
 
 `scripts/create-dmg.sh` uses `DEVELOPER_ID_APPLICATION` when provided. Without it, the script creates an ad-hoc signed community build. Notarization must be added before describing a release as Gatekeeper-ready.
 
-## v1.5 publication gate
+## Native validation policy
 
-Run the [native validation matrix](NATIVE_VALIDATION.md) before tagging or publishing. Generic placeholders, a widened divider, passing unit tests or a signed DMG are not native GUI evidence. Keep signed Sparkle generation in release CI. Package both ad-hoc XPC services and verify their current designated requirements from the installed application.
+The [native validation matrix](NATIVE_VALIDATION.md) remains open follow-up validation for v1.5.0 and future releases. Generic placeholders, a widened divider, passing unit tests or a signed DMG are not native GUI evidence. The v1.5.0 release report records the physical checks waived for that release. Keep signed Sparkle generation in release CI, package both ad-hoc XPC services, and verify their current designated requirements from the installed application.

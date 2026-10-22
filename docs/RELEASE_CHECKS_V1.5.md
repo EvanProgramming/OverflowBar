@@ -1,51 +1,43 @@
-# OverflowBar v1.5.0 pre-release checks
+# OverflowBar v1.5.0 release checks
 
-**Verdict: NOT CLEARED FOR RELEASE.** Local automated and packaging checks pass after two confirmed blockers were fixed. Release approval remains blocked by untested installed-app behavior, endurance, physical compatibility, and Sparkle update installation.
+**Verdict: RELEASED as the latest stable version on 2026-10-22.** The production-key Sparkle rehearsal, package build, release workflow, and published artifacts passed. The complete physical acceptance matrix was not run and was waived for this release; the untested items below are not represented as passing.
 
-## Candidate and environment
+## Release and environment
 
-- Base commit: `4dfb1a43e14fa0be262925ff31d9495b97d8aa29`. The candidate changes in this report are in the worktree and are not committed.
-- Candidate version/build: `1.5.0 (19)`; bundle identity remains `com.overflowbar.mac26.v6`; ad-hoc signing is retained.
-- Environment: macOS 26.4 (25E246), Apple M3, Xcode 26.6 (17F113), internal display only. The installed app and preferences were backed up under `/private/tmp/OverflowBar-v15-installed-backup`; the installed app was not replaced.
-- No release tag, GitHub release, or production feed was created or modified.
+- Release: [OverflowBar 1.5.0 — Native Engine Update](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.5.0), stable (not a prerelease), marked latest.
+- Signed tag `v1.5.0` points to `cf172457638835d4bd88c071f4e9c3df9816d70b` (version/build `1.5.0 (19)`). Bundle identity remains `com.overflowbar.mac26.v6`; ad-hoc signing is retained.
+- The v1.0.19 release remains published as a manual fallback: [v1.0.19](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.0.19). Sparkle does not downgrade automatically.
+- Local environment: macOS 26.4 (25E246), Apple M3, Xcode 26.6 (17F113), internal display only. Hosted release checks ran on GitHub Actions `macos-26`.
+- Production-key preflight: [run 39784573690](https://github.com/EvanProgramming/OverflowBar/actions/runs/39784573690), successful on the release-tag commit. Release publication: [run 39785595401](https://github.com/EvanProgramming/OverflowBar/actions/runs/39785595401), successful.
 
 ## Check results
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Targeted source review | **PASS** | Reviewed discovery and identity matching, native movement, activation/restoration, capture, helper authentication, preference migration, onboarding, and lifecycle paths with their associated tests. No additional confirmed runtime blocker was found; this does not replace the live acceptance gates below. |
-| Debug XCTest | **PASS** | `xcodebuild -project OverflowBar.xcodeproj -scheme OverflowBar -configuration Debug -destination 'platform=macOS' -derivedDataPath /private/tmp/OverflowBar-v15-final-debug CODE_SIGN_IDENTITY=- test`: 67 tests, 0 failures; one Accessibility-permission-dependent test skipped. |
-| Xcode static analysis | **PASS** | `xcodebuild ... -configuration Debug ... CODE_SIGN_IDENTITY=- analyze`: `ANALYZE SUCCEEDED`. Xcode emitted only App Intents metadata and signed dependency stripping warnings. |
-| Universal Release build and signing | **PASS** | `scripts/create-dmg.sh` completed for arm64 and x86_64. `codesign --verify --deep --strict` passed for the app and nested XPC/framework code. |
-| Deployment metadata | **PASS** | App, EngineWorker, CaptureWorker, and native fixture contain arm64 and x86_64 slices and report macOS 15.0 minimum OS. `LSMinimumSystemVersion` and app version metadata are 15.0 and 1.5.0 (19). |
-| DMG | **PASS** | `hdiutil verify` passed; mounted contents include the app, Applications symlink, and install guide; mounted app signature verified. SHA-256: `7d1dd8ea6268bd138e78c327659db17f74833750ed34bddc12efec76f7d2bb3c`. |
-| Updater ZIP | **PASS** | Extracted app signature verified; archive contains only `OverflowBar.app`, retains Sparkle symlinks and executable permissions. SHA-256: `aeb2830d0f736fc9516019c8d78fdd573a12485f72948ca5c0abd3a7eeff6205`. |
-| Native fixture build | **PASS** | Ad-hoc signature verified; arm64 and x86_64 slices, macOS 15.0 minimum. |
-| Native-engine and documentation checks | **PASS** | `bash scripts/check-native-engine.sh`; `ruby scripts/check-doc-links.rb` (9 files); plist lint; shell syntax; `git diff --check`; all passed. References to the absent repair script were removed. |
-| Homebrew cask | **PASS** | `bash scripts/validate-homebrew-cask.sh` passed. Cask SHA-256 matches the candidate DMG above. |
-| Disposable Sparkle update installation | **PASS** | Downloaded the published v1.0.19 archive, staged a signed local HTTP appcast and v1.5.0 ZIP with an ephemeral test key, confirmed Sparkle 2.9.6 detected the update, installed it over a disposable copy, and verified version 1.5.0/build 19 and the resulting nested signature. No user-installed app or production feed was changed. |
-| Release preflight workflow | **NOT TESTED** | `.github/workflows/preflight.yml` parses as YAML and its shell blocks pass `bash -n`. It now rehearses the published v1.0.19 app against the candidate using Sparkle 2.9.6. It was not dispatched; hosted CI and the production signing secret were not exercised. |
-| Production-key Sparkle signing and tamper rejection | **NOT TESTED** | The workflow checks signed feed/archive acceptance and rejects archive/feed tampering, but this production-key path was not run. No production key was accessed. |
-| Installed GUI acceptance | **NOT TESTED** | Native hide/show, captured previews, menu/popover/toggle ownership, Snapzy/Electron activation, keyboard and appearance behavior, permissions, helper interruption, reset/quit, wake, Spaces, fullscreen, and menu-bar auto-hide were not exercised. The Computer Use UI bridge was unavailable. |
-| Activation cycles and endurance | **NOT TESTED** | No 100-cycle run, fixture response-counter record, or two-hour per-minute resource/error soak was completed. |
-| macOS 15 and Intel hardware | **NOT TESTED** | No physical macOS 15 or Intel system was available. Rosetta availability does not substitute for hardware and OS acceptance. |
-| Display configurations | **NOT TESTED** | Only the M3 internal display was available; external and vertically arranged display configurations were not tested. |
+| Targeted source review | **PASS** | Reviewed discovery and identity matching, native movement, activation/restoration, capture, helper authentication, preference migration, onboarding, and lifecycle paths with their tests. |
+| Debug XCTest | **PASS** | Local and hosted Debug test runs: 67 tests, 0 failures; one Accessibility-permission-dependent test skipped. |
+| Xcode static analysis | **PASS** | Local `xcodebuild ... analyze`: `ANALYZE SUCCEEDED`. |
+| Universal Release build and nested signing | **PASS** | Hosted release build produced arm64 and x86_64 binaries; app, XPC services, and Sparkle framework signatures verified. |
+| Deployment metadata | **PASS** | Published app, EngineWorker, and CaptureWorker contain arm64 and x86_64 slices and report macOS 15.0 minimum. Version/build is 1.5.0 (19). |
+| macOS 26.4 native fixture subset | **PASS** | Recorded fixture checks hid four native items at real offscreen coordinates and restored them; menu activation reached the fixture owner; popover/toggle counters changed; recognizable fixture captures, Escape dismissal, and return to the hidden layout were observed. See the [implementation ledger](implementation/v1.5-engine-ledger.md). |
+| Native-engine and documentation checks | **PASS** | `scripts/check-native-engine.sh`, documentation-link checks, plist lint, shell syntax, and `git diff --check` passed. The stale CI invocation of the absent repair script was removed. |
+| Homebrew cask and published checksum | **PASS** | Cask metadata/style checks passed. Its SHA-256 matches the exact published DMG; the release `.sha256` asset and downloaded DMG also matched. |
+| Published DMG | **PASS** | `hdiutil verify`, mounted contents, Applications symlink, and mounted app signature passed. SHA-256: `f18b2e8b9156e84e3d05083eb33a06d647fe6243f64fc641202051091d2db566`. |
+| Published updater ZIP | **PASS** | Archive contains only `OverflowBar.app`; extracted app and nested signatures passed. SHA-256: `d171c0d00fcb984dd54877b871e18136dae86a9510edb1601cdaf2a5649fdcc9`. |
+| Published appcast | **PASS** | Release appcast identifies version 1.5.0/build 19 and contains the archive EdDSA signature. Asset SHA-256: `61adb8c2a7f5469e968634930957de71f276f76b8af5259b1d81fb71599548cb`. |
+| Production-key Sparkle rehearsal | **PASS** | The workflow signed and verified the candidate archive and appcast, rejected tampered archive/feed data, and installed v1.5.0/build 19 over a disposable copy of the published v1.0.19 app. The resulting nested signature verified. Production key material stayed in the GitHub Actions secret. |
+| Stable/latest release state | **PASS** | GitHub's `/releases/latest` endpoint returns v1.5.0; release is neither draft nor prerelease. |
+| Full third-party GUI acceptance | **NOT TESTED** | Snapzy and Electron tray response, permission denial/regrant, helper interruption/recycling, appearance/accessibility settings, relaunch/reset/quit, wake, Spaces, fullscreen, and auto-hide were not covered as a complete matrix. |
+| 100 activation cycles and two-hour soak | **NOT TESTED** | No complete 100-cycle run, fixture-counter record for that run, or per-minute two-hour resource/error samples were collected. |
+| macOS 15 and Intel hardware | **NOT TESTED** | No physical macOS 15 system or Intel hardware was available. Universal slices and the macOS 15 deployment floor were verified on the published package. |
+| Display matrix | **NOT TESTED** | Only the internal display was available; external and vertically arranged display configurations were not exercised. |
+| macOS 27 runtime readiness | **NOT TESTED** | The code retains a fail-open compatibility path, but macOS 27 runtime behavior was not exercised in this release audit. |
 
 ## Confirmed fixes
 
-- Removed the CI call to missing `scripts/test-controlcenter-repair.py` and removed user-facing references to the absent optional repair tool.
-- Fixed `scripts/create-dmg.sh` passing an empty array with `set -u`, which failed under macOS's Bash 3.2. Verified empty and populated argument expansion under `/bin/bash` 3.2; the universal package build then completed.
-- Updated the candidate cask checksum to the verified candidate DMG and added a matching checksum assertion to the manual preflight workflow.
+- Removed CI and documentation references to the absent optional Control Center repair tool.
+- Fixed `scripts/create-dmg.sh` passing an empty array with `set -u`, which failed under macOS Bash 3.2.
+- Added a nonpublishing production-key Sparkle preflight for the v1.0.19-to-v1.5.0 update path. Its first run exposed an incorrect XML-shape assumption in the feed-tampering probe; the probe was corrected and the second run passed.
+- Updated the Homebrew cask to the checksum of the exact DMG produced by the release workflow. DMG hashes vary between builds, so the published artifact—not a local rebuild—is authoritative.
 
-## Required before release
-
-Run the installed-app, 100-cycle, and two-hour soak gates on macOS 26.4 and macOS 15; run Intel and unavailable display checks where hardware permits; dispatch the production-key preflight and retain its logs. If any package is rebuilt, rerun package verification and update the cask checksum to that exact distribution DMG. If TCC grants are stale, remove OverflowBar from **System Settings → Privacy & Security → Accessibility** and **Screen & System Audio Recording**, add the installed `/Applications/OverflowBar.app` again, then quit and reopen it. Do not use a successful build as a substitute for these gates.
-
-## Artifact digests
-
-- App executable: `616903637d3a2321648bbde13c8c3240e6748fa715afa9d4d81868da803bd929`
-- EngineWorker: `39376fa2277d8ffff33a6f8549e8ff910c540f78cc8b992c6a627f18c19459db`
-- CaptureWorker: `0a88d0252c2ce064aa6d8cfc58c2e2cb2605b2c1a84958f4f5cd3880701b28a0`
-- Native fixture executable: `91077cbbb718ff4781829f6241829478f8ae8c67d06aab79f122b63493699eca`
-
-The cask hash above matches the first verified candidate DMG. A second fresh package build produced DMG SHA-256 `5a14cc73cd9f4913f0698f6603f63f9e990b77896a5cb7f0445a6efe65523bae`, so package outputs are not byte-for-byte reproducible; refresh the cask hash for the exact DMG selected for distribution.
+The release is usable as the latest stable update, with v1.0.19 retained for manual rollback. Confidence is strongest for automated checks and the recorded macOS 26.4 fixture flows; the physical matrix remains open validation work.
