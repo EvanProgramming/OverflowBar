@@ -238,12 +238,12 @@ import OSLog
     }
     func activate(_ id: String, button: CGMouseButton = .left) async -> MenuBarActivationResult {
         guard !operating else { message?(EngineError.busy.localizedDescription); return .unavailable }
-        guard restorations.isEmpty else { message?("Close the current native menu before opening another icon, or reveal the group to cancel restoration."); return .unavailable }
+        guard restorations.isEmpty else { message?("Close this menu before opening another icon, or choose Reveal Icons to stop automatic hiding."); return .unavailable }
         guard AXIsProcessTrusted() else { visibility?(false); revealed = true; message?(EngineError.permission.localizedDescription); return .manualFallback }
         operating = true
         defer { operating = false; progress?(nil) }
         let generation = operationGeneration
-        progress?("Opening native menu")
+        progress?("Opening menu")
         do {
             let item = try await resolve(id)
             guard !protected(item), item.displayID != nil else { throw EngineError.unresolved }
@@ -327,7 +327,7 @@ import OSLog
                             let current = Set(self.activationWindows(pids: pids, anchoredTo: originalFrame).compactMap { $0[kCGWindowNumber as String] as? UInt32 })
                             guard lifecycle.observe(current) else { continue }
                             guard !self.operating else { continue }
-                            self.operating = true; self.progress?("Restoring native icon")
+                            self.operating = true; self.progress?("Restoring icon")
                             defer { self.operating = false; self.progress?(nil) }
                             do {
                                 _ = try await self.discover()

@@ -26,6 +26,7 @@ struct OverflowPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(panelAnimation, value: presentation.isPresented)
+        .saturation(0)
     }
 
     @ViewBuilder
@@ -55,7 +56,7 @@ struct OverflowPanelView: View {
     private var panelContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
-                if store.overflowItems.isEmpty { Text("Select icons in OverflowBar Settings").foregroundStyle(.secondary).padding(.horizontal, 12) }
+                if store.overflowItems.isEmpty { Text("Choose icons in Menu Bar Settings to see them here.").foregroundStyle(.secondary).padding(.horizontal, 12) }
                 ForEach(store.overflowItems) { item in
                     OverflowItemView(item: item, action: { onActivate(item) }, rightAction: { onRightActivate(item) })
                 }
@@ -65,7 +66,7 @@ struct OverflowPanelView: View {
         }
         .frame(height: Self.preferredHeight - 6)
         .scrollBounceBehavior(.basedOnSize)
-        .help(store.lastActivationError ?? store.layoutOperationMessage ?? "Click an icon to open its native interface")
+        .help(store.lastActivationError ?? store.layoutOperationMessage ?? "Select an icon to open its menu")
     }
 
     private var panelTransition: AnyTransition {

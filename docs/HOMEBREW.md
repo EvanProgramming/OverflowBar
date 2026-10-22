@@ -39,7 +39,7 @@ means Homebrew can install it, but macOS may block the first launch. If that
 happens, Control-click **OverflowBar** in Applications and choose **Open**.
 
 Accessibility is required for automatic icon arrangement and native clicks.
-Screen Recording enables genuine previews. Without these grants, setup reports
+Screen Recording enables live previews. Without these permissions, setup reports
 a limited state. Homebrew cannot grant permissions on
 the user's behalf.
 

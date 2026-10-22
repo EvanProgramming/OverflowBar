@@ -4,7 +4,7 @@ OverflowBar targets macOS 15 and macOS 26, on Intel and Apple Silicon. The v1.5 
 
 ## Install
 
-Download a published OverflowBar DMG from the official GitHub releases, drag the app to Applications and open it. A manual launch opens setup/overview. For local candidate validation, use the exact verified universal build installed in Applications.
+Download a published OverflowBar DMG from the official GitHub releases, drag the app to Applications and open it. The first launch opens setup; later launches open Menu Bar. For local candidate validation, use the verified universal build installed in Applications.
 
 ## First launch and Gatekeeper
 
@@ -18,7 +18,7 @@ Embedded discovery and capture helpers are ad-hoc signed too. They authenticate 
 
 ## Updating
 
-Preserve the existing app identity and preferences. Upgrade reveals icons once and reopens native setup. Only unambiguously resolved old selections are imported; otherwise select icons again in overview. Normal quit reveals originals without deleting the desired hidden preference.
+Preserve the existing app identity and preferences. If setup opens again, choose **Set Up Later** to leave your current icon layout unchanged. Quitting shows icons in the menu bar and keeps your saved choices.
 
 ## Uninstall
 

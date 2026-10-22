@@ -8,6 +8,8 @@ struct OverflowBarApp: App {
         Settings {
             SettingsView(
                 store: appDelegate.store,
+                permissions: appDelegate.permissions,
+                navigation: appDelegate.settingsNavigation,
                 showOnboarding: { appDelegate.showOnboarding() },
                 checkForUpdates: { appDelegate.checkForUpdates() }
             )

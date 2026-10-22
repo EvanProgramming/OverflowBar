@@ -5,12 +5,13 @@ import Combine
     @Published private(set) var items: [MenuBarItem] = []
     @Published var lastActivationError: String?
     @Published private(set) var groupHidden = false
+    @Published private(set) var layoutManagementEnabled = false
     @Published private(set) var layoutOperationMessage: String?
     @Published private(set) var iconCaptureMessage: String?
     @Published private(set) var operationProgress: String?
     var nativeOperationInProgress: Bool { operationProgress != nil || activationTask != nil }
     @Published private(set) var selectedIDs: [String]
-    private let preferences = PreferencesStore()
+    private let preferences: PreferencesStore
     private let engine = NativeMenuBarEngine()
     private var records: [String: EngineItemRecord] = [:]
     private var dividerFrame: CGRect?
@@ -30,8 +31,10 @@ import Combine
     private var observers: [NSObjectProtocol] = []
     private var timer: Timer?
     var onLayoutStateChanged: (() -> Void)?
-    init() {
+    init(preferences: PreferencesStore = PreferencesStore()) {
+        self.preferences = preferences
         selectedIDs = preferences.selectedNativeItems
+        layoutManagementEnabled = preferences.layoutManagementEnabled
         engine.visibility = { [weak self] hidden in
             self?.groupHidden = hidden; self?.onLayoutStateChanged?()
         }
@@ -86,7 +89,7 @@ import Combine
                     if !layoutStillHidden && !self.automaticManagementSuspended && self.preferences.layoutManagementEnabled && !self.selectedIDs.isEmpty { self.applyLayout(automatic: true) }
                 }
                 self.previousSignature = signature
-                if self.layoutOperationMessage == nil { self.layoutOperationMessage = self.groupHidden ? "Selected icons are hidden. The arrow opens the second row." : "Select the icons to hide, then choose Hide Selected Icons." }
+                if self.layoutOperationMessage == nil { self.layoutOperationMessage = self.groupHidden ? "Selected icons are in the second row." : "Choose the icons to place in the second row." }
             } catch { self.discoveryFailed = true; self.layoutOperationMessage = error.localizedDescription }
             self.refreshTask = nil
             if self.refreshRequested { self.refreshRequested = false; self.refresh() }
@@ -98,7 +101,8 @@ import Combine
         records = Dictionary(snapshot.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         items = publicItems.map { record in
             let app = record.sourcePID.flatMap(NSRunningApplication.init(processIdentifier:))
-            let item = MenuBarItem(id: record.id, title: record.title, ownerName: app?.localizedName ?? (record.persistentID == nil ? "Unresolved Native Item" : record.bundleIdentifier ?? "System"), bundleIdentifier: record.bundleIdentifier, frame: record.frame, axElement: nil, iconImage: old[record.id] ?? nil, applicationIcon: app?.icon, supportsPressAction: record.supportsPress, windowID: record.windowID, ownerPID: record.ownerPID, isProtectedSystemItem: MenuBarSystemItemClassifier.isProtected(record.title, owner: record.bundleIdentifier))
+            let ownerName = app?.localizedName ?? (record.persistentID == nil ? "Unknown item" : record.bundleIdentifier.map { String($0.split(separator: ".").last ?? "App").capitalized } ?? "macOS")
+            let item = MenuBarItem(id: record.id, title: record.title, ownerName: ownerName, bundleIdentifier: record.bundleIdentifier, frame: record.frame, axElement: nil, iconImage: old[record.id] ?? nil, applicationIcon: app?.icon, supportsPressAction: record.supportsPress, windowID: record.windowID, ownerPID: record.ownerPID, isProtectedSystemItem: MenuBarSystemItemClassifier.isProtected(record.title, owner: record.bundleIdentifier))
             item.nativeRecord = record
             return item
         }.sorted { $0.frame.minX < $1.frame.minX }
@@ -108,17 +112,28 @@ import Combine
         if selected { if !selectedIDs.contains(item.id) { selectedIDs.append(item.id) } }
         else { selectedIDs.removeAll { $0 == item.id } }
         preferences.selectedNativeItems = selectedIDs
-        if preferences.layoutManagementEnabled { applyLayout(automatic: false) }
+        if layoutManagementEnabled { applyLayout(automatic: false) }
+    }
+    func configureSelection(_ ids: [String], hideSelectedIcons: Bool) {
+        guard layoutTask == nil, operationProgress == nil else { return }
+        selectedIDs = ids
+        preferences.selectedNativeItems = ids
+        layoutManagementEnabled = hideSelectedIcons && !ids.isEmpty
+        preferences.layoutManagementEnabled = layoutManagementEnabled
+        automaticManagementSuspended = !layoutManagementEnabled
+        if layoutManagementEnabled || groupHidden { applyLayout(automatic: false) }
+        else { layoutOperationMessage = "Choose the icons to place in the second row." }
     }
     func setLayoutManagementEnabled(_ enabled: Bool) {
         if !enabled { cancelOperation() }
-        automaticManagementSuspended = !enabled
-        preferences.layoutManagementEnabled = enabled
+        layoutManagementEnabled = enabled && !selectedIDs.isEmpty
+        automaticManagementSuspended = !layoutManagementEnabled
+        preferences.layoutManagementEnabled = layoutManagementEnabled
         applyLayout(automatic: false)
     }
     private func applyLayout(automatic: Bool) {
         guard layoutTask == nil else { layoutOperationMessage = "A layout operation is already running. Cancel it before changing selection."; return }
-        operationProgress = "Resolving native icons"
+        operationProgress = "Finding menu bar icons"
         let selection = selectedIDs
         let hidden = preferences.layoutManagementEnabled && !selection.isEmpty
         layoutTask = Task { [weak self] in
@@ -126,7 +141,7 @@ import Combine
             do {
                 try await self.engine.apply(selected: selection, hidden: hidden, automatic: automatic)
                 self.update(self.engine.records)
-                self.layoutOperationMessage = hidden ? "Selected native icons are hidden." : "Native icons are revealed."
+                self.layoutOperationMessage = hidden ? "Selected icons are in the second row." : "Menu bar icons are visible."
             } catch { self.automaticManagementSuspended = true; self.layoutOperationMessage = error.localizedDescription }
             self.layoutTask = nil; self.operationProgress = nil
             if self.refreshRequested { self.refreshRequested = false; self.refresh() }
@@ -135,7 +150,7 @@ import Combine
     func cancelOperation() {
         automaticManagementSuspended = true
         activationTask?.cancel(); layoutTask?.cancel(); captureTask?.cancel(); engine.cancel()
-        layoutOperationMessage = "Operation cancelled. Native icons are revealed."
+        layoutOperationMessage = "Canceled. Menu bar icons are visible."
     }
     func restoreAllAndDisable() {
         cancelOperation(); onControlsRecoveryRequested?(); preferences.resetLayoutState(); preferences.selectedNativeItems = []; selectedIDs = []
@@ -166,21 +181,21 @@ import Combine
                 captured.isTemplate = EngineCaptureFrame.isMonochrome(frame.pixels)
                 self.items.first { $0.windowID == frame.windowID }?.iconImage = captured
             }
-            self.iconCaptureMessage = frames.count == selected.count ? "Native icon previews loaded." : "Some previews are unavailable. Enable Screen Recording; app icons are shown as a limited fallback."
+            self.iconCaptureMessage = frames.count == selected.count ? "Live icon previews are ready." : "Some live previews are unavailable. Enable Screen Recording or use the available app icons."
             self.objectWillChange.send(); self.captureCallbacks.complete()
         }
     }
     func activate(_ item: MenuBarItem, mouseButton: CGMouseButton = .left, completion: ((MenuBarActivationResult) -> Void)? = nil) {
         lastActivationError = nil
-        guard activationTask == nil else { lastActivationError = "A native menu operation is already active."; return }
+        guard activationTask == nil else { lastActivationError = "A menu bar action is already running."; return }
         activationTask = Task { [weak self] in
             guard let self else { return }
             defer { self.activationTask = nil }
             let result = await self.engine.activate(item.id, button: mouseButton)
             if result != .activated { self.automaticManagementSuspended = true }
             if let message = result.layoutMessage(groupHidden: self.groupHidden) { self.layoutOperationMessage = message }
-            if result == .unobserved { self.lastActivationError = "OverflowBar could not confirm that the native interface opened. The original item is accessible; click it directly." }
-            if result == .awaitingManualInterface { self.lastActivationError = "OverflowBar could not confirm that the native interface opened. Click the original icon directly; the hidden layout will be restored after its menu closes." }
+            if result == .unobserved { self.lastActivationError = "OverflowBar couldn't confirm that this icon opened. It's still available in the menu bar; open it there." }
+            if result == .awaitingManualInterface { self.lastActivationError = "Open this icon from the menu bar. OverflowBar will put it back after its menu closes." }
             completion?(result)
         }
     }
@@ -196,7 +211,6 @@ import Combine
     func updateDividerFrame(_ frame: CGRect?) { dividerFrame = frame }
     func updateStatusItemWindowIDs(control: CGWindowID?, hidden: CGWindowID?) { refresh() }
     func showManualGroupingExplanation() { }
-    func showArrangeInstructions() { layoutOperationMessage = "Select icons below. OverflowBar arranges them using bounded native Command-drag transactions." }
     deinit {
         timer?.invalidate()
         for observer in observers { NotificationCenter.default.removeObserver(observer); NSWorkspace.shared.notificationCenter.removeObserver(observer) }

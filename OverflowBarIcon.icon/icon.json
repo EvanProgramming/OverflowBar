@@ -1,8 +1,8 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "extended-gray:1.00000,1.00000",
-      "srgb:0.00000,0.94118,1.00000,1.00000"
+      "extended-gray:0.96000,1.00000",
+      "extended-gray:0.73000,1.00000"
     ],
     "orientation" : {
       "start" : {
@@ -86,7 +86,7 @@
             "scale" : 3,
             "translation-in-points" : [
               0,
-              157.40720140496427
+              60
             ]
           }
         }

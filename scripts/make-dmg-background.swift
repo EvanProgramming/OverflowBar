@@ -8,7 +8,7 @@ image.lockFocus()
 NSColor(calibratedWhite: 0.97, alpha: 1).setFill()
 NSRect(origin: .zero, size: size).fill()
 
-let accent = NSColor(calibratedRed: 0.18, green: 0.42, blue: 0.82, alpha: 1)
+let accent = NSColor(calibratedWhite: 0.18, alpha: 1)
 accent.setStroke()
 let arrow = NSBezierPath()
 arrow.lineWidth = 8
@@ -21,8 +21,8 @@ arrow.move(to: NSPoint(x: 570, y: 275))
 arrow.line(to: NSPoint(x: 525, y: 235))
 arrow.stroke()
 
-let title = "Install OverflowBar"
-let subtitle = "Drag the app to Applications to finish installation"
+let title = "Welcome to OverflowBar"
+let subtitle = "Drag OverflowBar to Applications to install"
 let titleAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 30, weight: .semibold), .foregroundColor: NSColor.labelColor]
 let subtitleAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 16), .foregroundColor: NSColor.secondaryLabelColor]
 (title as NSString).draw(at: NSPoint(x: 285, y: 465), withAttributes: titleAttributes)

@@ -11,11 +11,11 @@ enum MenuBarActivationResult: Equatable {
     func layoutMessage(groupHidden: Bool) -> String? {
         switch self {
         case .itemChanged:
-            "The native item changed. Hide the group again when you are ready."
+            "This icon changed. Review its menu bar position before hiding it again."
         case .awaitingManualInterface:
-            "Native icons are revealed. Click the original item; OverflowBar will restore the layout after its menu closes."
+            "Open this icon from the menu bar. OverflowBar will put it back after its menu closes."
         case .unobserved where !groupHidden, .manualFallback where !groupHidden:
-            "Native icons are revealed. Click the original item, then hide the group again when ready."
+            "Open this icon from the menu bar, then hide selected icons when you're ready."
         default:
             nil
         }

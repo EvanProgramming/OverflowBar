@@ -87,14 +87,14 @@ enum EngineError: Error, LocalizedError {
     case helper(String), unsupportedOS, unresolved, controlsUnavailable, permission, busy, moveFailed, deadline
     var errorDescription: String? {
         switch self {
-        case .helper(let message): return message
-        case .unsupportedOS: return "Native menu-bar management is supported on macOS 15 through 26. Icons remain accessible on this system."
-        case .unresolved: return "The native target could not be resolved uniquely. It was left visible."
-        case .controlsUnavailable: return "OverflowBar’s native arrow/divider could not be located. Reveal and retry setup."
+        case .helper(_): return "OverflowBar couldn't complete this menu bar task. Quit and reopen the app, then try again."
+        case .unsupportedOS: return "Hiding icons isn't available on this version of macOS. Your icons remain visible."
+        case .unresolved: return "OverflowBar couldn't identify this icon safely, so it was left visible."
+        case .controlsUnavailable: return "OverflowBar couldn't find its menu bar controls. Quit and reopen the app, then try again."
         case .permission: return "Enable Accessibility to arrange or activate the selected icons."
-        case .busy: return "A native operation is already running. Wait or cancel it."
-        case .moveFailed: return "macOS did not confirm the native icon move. The group was left visible."
-        case .deadline: return "The native operation reached its deadline. The group was left visible."
+        case .busy: return "A menu bar action is already running. Wait for it to finish or cancel it."
+        case .moveFailed: return "macOS couldn't confirm that the icons moved. They remain available in the menu bar."
+        case .deadline: return "This took too long. The icons remain available in the menu bar."
         }
     }
 }

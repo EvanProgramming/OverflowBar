@@ -19,7 +19,7 @@ final class ActivationAndCaptureTests: XCTestCase {
     func testManualActivationFallbackReportsRevealedGroupState() {
         XCTAssertEqual(
             MenuBarActivationResult.unobserved.layoutMessage(groupHidden: false),
-            "Native icons are revealed. Click the original item, then hide the group again when ready."
+            "Open this icon from the menu bar, then hide selected icons when you're ready."
         )
         XCTAssertNil(MenuBarActivationResult.unobserved.layoutMessage(groupHidden: true))
     }
@@ -27,7 +27,7 @@ final class ActivationAndCaptureTests: XCTestCase {
     func testManualMenuFallbackExplainsAutomaticRestoration() {
         XCTAssertEqual(
             MenuBarActivationResult.awaitingManualInterface.layoutMessage(groupHidden: false),
-            "Native icons are revealed. Click the original item; OverflowBar will restore the layout after its menu closes."
+            "Open this icon from the menu bar. OverflowBar will put it back after its menu closes."
         )
     }
 

@@ -66,7 +66,7 @@ printf '%s\n' \
     'the app contains malware. Download OverflowBar only from the official GitHub release, then open' \
     'System Settings > Privacy & Security and choose Open Anyway if macOS blocks the first launch.' \
     '' \
-    'Accessibility is required for automatic icon arrangement and native clicks. Screen Recording enables genuine previews.' \
+    'Accessibility lets OverflowBar hide selected icons and open their menus. Screen Recording shows live icon previews.' \
     > "$STAGING/Install Guide.txt"
 
 hdiutil create \
