@@ -8,7 +8,8 @@ final class StatusBarController: NSObject {
     private let panelController: OverflowPanelController
     private let showSettings: () -> Void
     private var compactDividerFrame: CGRect?
-    private var hoverMonitor: Any?
+    private var hoverTimer: Timer?
+    private var hoverRevealState = MenuBarHoverRevealState()
     private var screenObserver: NSObjectProtocol?
 
     init(store: MenuBarItemStore, showSettings: @escaping () -> Void) {
@@ -64,8 +65,8 @@ final class StatusBarController: NSObject {
                 self.panelController.show(relativeTo: button)
             }
         }
-        hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
-            DispatchQueue.main.async { [weak self] in self?.revealOnHoverIfEnabled() }
+        hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.updateHoverReveal() }
         }
     }
 
@@ -119,7 +120,7 @@ final class StatusBarController: NSObject {
         publishStatusItemWindowIDs()
     }
 
-    func prepareForTermination() { store.prepareForTermination {}; dividerItem.length = 20 }
+    func prepareForTermination() { hoverTimer?.invalidate(); hoverTimer = nil; store.prepareForTermination {}; dividerItem.length = 20 }
 
     func showPanel() { if let button = statusItem.button { panelController.show(relativeTo: button) } }
 
@@ -147,10 +148,16 @@ final class StatusBarController: NSObject {
 
     private func publishStatusItemWindowIDs() { store.refresh() }
 
-    private func revealOnHoverIfEnabled() {
-        guard UserDefaults.standard.bool(forKey: "hoverRevealEnabled"),
-              let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }),
-              NSEvent.mouseLocation.y >= screen.frame.maxY - NSStatusBar.system.thickness - 2,
+    private func updateHoverReveal() {
+        let mouseLocation = NSEvent.mouseLocation
+        let pointerInMenuBar = NSScreen.screens.contains { screen in
+            screen.frame.contains(mouseLocation) && mouseLocation.y >= screen.frame.maxY - NSStatusBar.system.thickness - 2
+        }
+        guard hoverRevealState.shouldReveal(
+                enabled: UserDefaults.standard.bool(forKey: "hoverRevealEnabled"),
+                pointerInMenuBar: pointerInMenuBar,
+                operationInProgress: store.nativeOperationInProgress
+              ),
               let button = statusItem.button else { return }
         panelController.show(relativeTo: button, takeKeyboardFocus: false)
     }
@@ -162,8 +169,19 @@ final class StatusBarController: NSObject {
     }
 
     deinit {
-        if let hoverMonitor { NSEvent.removeMonitor(hoverMonitor) }
+        hoverTimer?.invalidate()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+    }
+}
+
+struct MenuBarHoverRevealState {
+    private var pointerWasInMenuBar = false
+
+    mutating func shouldReveal(enabled: Bool, pointerInMenuBar: Bool, operationInProgress: Bool) -> Bool {
+        guard enabled else { pointerWasInMenuBar = false; return false }
+        let enteredMenuBar = pointerInMenuBar && !pointerWasInMenuBar
+        pointerWasInMenuBar = pointerInMenuBar
+        return enteredMenuBar && !operationInProgress
     }
 }
 

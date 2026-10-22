@@ -8,6 +8,7 @@ import Combine
     @Published private(set) var layoutOperationMessage: String?
     @Published private(set) var iconCaptureMessage: String?
     @Published private(set) var operationProgress: String?
+    var nativeOperationInProgress: Bool { operationProgress != nil || activationTask != nil }
     @Published private(set) var selectedIDs: [String]
     private let preferences = PreferencesStore()
     private let engine = NativeMenuBarEngine()
