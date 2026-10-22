@@ -183,7 +183,7 @@ jobs:
             exit 1
           fi
           cp "$feed" "$RUNNER_TEMP/tampered-appcast.xml"
-          python3 -c 'from pathlib import Path; p=Path("'"$RUNNER_TEMP"'/tampered-appcast.xml"); d=p.read_bytes(); assert b"sparkle:version=" in d; p.write_bytes(d.replace(b"sparkle:version=", b"sparkle:versioX=", 1))'
+          python3 -c 'from pathlib import Path; p=Path("'"$RUNNER_TEMP"'/tampered-appcast.xml"); d=p.read_bytes(); marker=b"<sparkle:version>"; assert marker in d; p.write_bytes(d.replace(marker, marker+b"0", 1))'
           if printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sign_tool" --ed-key-file - --verify "$RUNNER_TEMP/tampered-appcast.xml"; then
             echo 'Sparkle accepted a tampered appcast' >&2
             exit 1
