@@ -34,7 +34,7 @@ final class StatusBarController: NSObject {
         statusItem.autosaveName = "OverflowBarControlItem"
         statusItem.button?.image = Self.symbol("chevron.down", label: "Show OverflowBar")
         statusItem.button?.setAccessibilityIdentifier("OverflowBarControlItem")
-        dividerItem = NSStatusBar.system.statusItem(withLength: 20)
+        dividerItem = NSStatusBar.system.statusItem(withLength: MenuBarGroupGeometry.compactDividerLength)
         dividerItem.autosaveName = "OverflowBarHiddenSection"
         dividerItem.button?.image = Self.symbol("line.3.vertical", label: "Hide or reveal the grouped icons")
         dividerItem.button?.setAccessibilityIdentifier("OverflowBarHiddenSection")
@@ -113,7 +113,7 @@ final class StatusBarController: NSObject {
         dividerItem.autosaveName = "OverflowBarHiddenSection"
         dividerItem.button?.image = Self.symbol("line.3.vertical", label: "Hide or reveal the grouped icons")
         dividerItem.button?.setAccessibilityIdentifier("OverflowBarHiddenSection")
-        dividerItem.length = 20
+        dividerItem.length = MenuBarGroupGeometry.compactDividerLength
         configureControlActions()
         compactDividerFrame = nil
         store.cancelOperation()
@@ -139,7 +139,7 @@ final class StatusBarController: NSObject {
         if !MenuBarGroupGeometry.supportsHiding(osMajorVersion: osMajorVersion) {
             store.setLayoutManagementEnabled(false)
         }
-        dividerItem.length = store.groupHidden ? 10_000 : 20
+        dividerItem.length = store.groupHidden ? 10_000 : MenuBarGroupGeometry.compactDividerLength
         if !store.groupHidden {
             compactDividerFrame = store.nativeControlFrame("OverflowBarHiddenSection")
             store.updateDividerFrame(compactDividerFrame)

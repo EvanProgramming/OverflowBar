@@ -46,12 +46,16 @@ import Combine
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in Task { @MainActor in self?.refresh() } }
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification, NSWorkspace.didWakeNotification, NSWorkspace.activeSpaceDidChangeNotification] {
             observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.engine.cancel(); self?.needsReapply = true; self?.previousSignature = []; self?.refresh() }
+                Task { @MainActor in self?.requestAutomaticReapply() }
             })
         }
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.needsReapply = true; self?.previousSignature = []; self?.engine.cancel(); self?.refresh() }
+            Task { @MainActor in self?.requestAutomaticReapply(resetDividerFrame: true) }
         })
+    }
+    private func requestAutomaticReapply(resetDividerFrame: Bool = false) {
+        if resetDividerFrame { dividerFrame = nil }
+        needsReapply = true; previousSignature = []; refresh()
     }
     func refresh() {
         guard refreshTask == nil, layoutTask == nil, operationProgress == nil else { refreshRequested = true; return }
@@ -73,9 +77,13 @@ import Combine
                 let hasDivider = snapshot.contains { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarHiddenSection" }
                 let hasArrow = snapshot.contains { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarControlItem" }
                 if self.needsReapply && signature == self.previousSignature && !signature.isEmpty,
+                   let divider = snapshot.first(where: { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarHiddenSection" }),
                    NativeLayoutPolicy.isReadyToReapply(selected: Set(self.selectedIDs), resolved: resolvedIDs, hasDivider: hasDivider, hasArrow: hasArrow) {
                     self.needsReapply = false
-                    if !self.automaticManagementSuspended && self.preferences.layoutManagementEnabled && !self.selectedIDs.isEmpty { self.applyLayout(automatic: true) }
+                    let items = snapshot.filter { !$0.isOwnControl && $0.displayID == divider.displayID }.map { (id: $0.id, frame: $0.frame) }
+                    let dividerFrame = MenuBarGroupGeometry.membershipFrame(compactFrame: self.dividerFrame, currentFrame: divider.frame) ?? divider.frame
+                    let layoutStillHidden = NativeLayoutPolicy.hiddenPlacementIsVerified(groupHidden: self.groupHidden, items: items, divider: dividerFrame, selected: Set(self.selectedIDs))
+                    if !layoutStillHidden && !self.automaticManagementSuspended && self.preferences.layoutManagementEnabled && !self.selectedIDs.isEmpty { self.applyLayout(automatic: true) }
                 }
                 self.previousSignature = signature
                 if self.layoutOperationMessage == nil { self.layoutOperationMessage = self.groupHidden ? "Selected icons are hidden. The arrow opens the second row." : "Select the icons to hide, then choose Hide Selected Icons." }

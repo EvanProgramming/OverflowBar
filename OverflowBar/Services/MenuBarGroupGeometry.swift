@@ -1,6 +1,8 @@
 import CoreGraphics
 
 enum MenuBarGroupGeometry {
+    static let compactDividerLength: CGFloat = 20
+
     static func membershipFrame(compactFrame: CGRect?, currentFrame: CGRect?) -> CGRect? {
         compactFrame ?? currentFrame
     }
@@ -13,8 +15,13 @@ enum MenuBarGroupGeometry {
     }
 
     static func dividerLength(groupHidden: Bool, osMajorVersion: Int, screenWidths: [CGFloat]) -> CGFloat {
-        guard groupHidden, supportsHiding(osMajorVersion: osMajorVersion) else { return 20 }
+        guard groupHidden, supportsHiding(osMajorVersion: osMajorVersion) else { return compactDividerLength }
         return collapsedLength(screenWidths: screenWidths)
+    }
+
+    static func compactBoundaryFrame(from frame: CGRect) -> CGRect {
+        guard frame.width > compactDividerLength else { return frame }
+        return CGRect(x: frame.maxX - compactDividerLength, y: frame.minY, width: compactDividerLength, height: frame.height)
     }
 
     static func collapsedLength(screenWidths: [CGFloat]) -> CGFloat {

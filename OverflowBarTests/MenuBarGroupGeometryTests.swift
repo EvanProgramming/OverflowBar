@@ -15,6 +15,11 @@ final class MenuBarGroupGeometryTests: XCTestCase {
         XCTAssertEqual(MenuBarGroupGeometry.dividerLength(groupHidden: true, osMajorVersion: 27, screenWidths: [1_440]), 20)
     }
 
+    func testExpandedDividerRetainsItsCompactBoundaryAtTheTrailingEdge() {
+        let expanded = CGRect(x: -2_860, y: 0, width: 2_980, height: 22)
+        XCTAssertEqual(MenuBarGroupGeometry.compactBoundaryFrame(from: expanded), CGRect(x: 100, y: 0, width: 20, height: 22))
+    }
+
     func testMembershipRequiresIconToBeWhollyLeftOfDivider() {
         let frames = [
             "left": CGRect(x: 20, y: 0, width: 40, height: 22),

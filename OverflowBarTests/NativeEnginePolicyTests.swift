@@ -43,6 +43,15 @@ final class NativeEnginePolicyTests: XCTestCase {
         XCTAssertFalse(NativeLayoutPolicy.placementIsVerified(items: [("hidden", CGRect(x: 90, y: 0, width: 20, height: 24)), ("visible", CGRect(x: 80, y: 0, width: 20, height: 24))], divider: divider, selected: selected))
         XCTAssertTrue(NativeLayoutPolicy.placementIsVerified(items: [("hidden", CGRect(x: 60, y: 0, width: 20, height: 24)), ("visible", CGRect(x: 125, y: 0, width: 20, height: 24))], divider: divider, selected: selected))
     }
+    func testWakeKeepsAnAlreadyVerifiedHiddenLayoutAndReappliesAfterDrift() {
+        let divider = CGRect(x: 100, y: 0, width: 20, height: 24)
+        let selected: Set<String> = ["hidden"]
+        let arranged = [(id: "hidden", frame: CGRect(x: 60, y: 0, width: 20, height: 24)), (id: "visible", frame: CGRect(x: 125, y: 0, width: 20, height: 24))]
+        let drifted = [(id: "hidden", frame: CGRect(x: 125, y: 0, width: 20, height: 24)), (id: "visible", frame: CGRect(x: 150, y: 0, width: 20, height: 24))]
+        XCTAssertTrue(NativeLayoutPolicy.hiddenPlacementIsVerified(groupHidden: true, items: arranged, divider: divider, selected: selected))
+        XCTAssertFalse(NativeLayoutPolicy.hiddenPlacementIsVerified(groupHidden: true, items: drifted, divider: divider, selected: selected))
+        XCTAssertFalse(NativeLayoutPolicy.hiddenPlacementIsVerified(groupHidden: false, items: arranged, divider: divider, selected: selected))
+    }
     func testHostPaddingDoesNotDiscardAnUnambiguousAXCenter() {
         let hosted = CGRect(x: 900, y: 0, width: 38, height: 33)
         let ax = CGRect(x: 907, y: 4.5, width: 24, height: 24)

@@ -11,6 +11,10 @@ enum NativeLayoutPolicy {
     static func placementIsVerified(items: [(id: String, frame: CGRect)], divider: CGRect, selected: Set<String>) -> Bool {
         items.allSatisfy { selected.contains($0.id) ? $0.frame.maxX <= divider.minX + 2 : $0.frame.minX >= divider.maxX - 2 }
     }
+    static func hiddenPlacementIsVerified(groupHidden: Bool, items: [(id: String, frame: CGRect)], divider: CGRect, selected: Set<String>) -> Bool {
+        guard groupHidden, !selected.isEmpty, items.contains(where: { selected.contains($0.id) }) else { return false }
+        return placementIsVerified(items: items, divider: MenuBarGroupGeometry.compactBoundaryFrame(from: divider), selected: selected)
+    }
     static func desiredOrder(current: [String], selected: [String], divider: String) -> [String] {
         let hidden = current.filter { selected.contains($0) && $0 != divider }
         return hidden + [divider] + current.filter { $0 != divider && !hidden.contains($0) }
