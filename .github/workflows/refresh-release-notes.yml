@@ -1,0 +1,120 @@
+name: Refresh release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published version whose notes should be refreshed
+        required: true
+        default: 1.5.0
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate published stable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' OverflowBar/Resources/Info.plist)"
+          tag="v$VERSION"
+          test "$(gh release view --json tagName --jq .tagName)" = "$tag"
+          test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = false
+          test "$(gh release view "$tag" --json isPrerelease --jq .isPrerelease)" = false
+          grep -Fq "# OverflowBar $VERSION" RELEASE_NOTES.md
+
+      - name: Download the published updater archive
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          archive_dir="$RUNNER_TEMP/overflowbar-release-notes"
+          mkdir -p "$archive_dir"
+          gh release download "v$VERSION" \
+            --repo EvanProgramming/OverflowBar \
+            --pattern "OverflowBar-$VERSION.zip" \
+            --dir "$archive_dir"
+          test -s "$archive_dir/OverflowBar-$VERSION.zip"
+
+      - name: Generate and verify signed appcast with expanded notes
+        shell: bash
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "$SPARKLE_ED_KEY"
+          archive_dir="$RUNNER_TEMP/overflowbar-release-notes"
+          build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' OverflowBar/Resources/Info.plist)
+          sparkle_dir="$RUNNER_TEMP/sparkle-2.9.6"
+          mkdir -p "$sparkle_dir"
+          cp RELEASE_NOTES.md "$archive_dir/OverflowBar-$VERSION.md"
+          curl --fail --location --retry 3 \
+            https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz \
+            --output "$RUNNER_TEMP/Sparkle-2.9.6.tar.xz"
+          tar -xJf "$RUNNER_TEMP/Sparkle-2.9.6.tar.xz" -C "$sparkle_dir"
+          printf '%s\n' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sparkle_dir/bin/generate_appcast" \
+            --account overflowbar \
+            --ed-key-file - \
+            --embed-release-notes \
+            --download-url-prefix "https://github.com/EvanProgramming/OverflowBar/releases/download/v$VERSION/" \
+            --link "https://github.com/EvanProgramming/OverflowBar/releases/tag/v$VERSION" \
+            "$archive_dir"
+          appcast="$archive_dir/appcast.xml"
+          printf '%s' "$SPARKLE_ED_KEY" | env -u SPARKLE_ED_KEY "$sparkle_dir/bin/sign_update" --ed-key-file - --verify "$appcast"
+          python3 - "$appcast" "$VERSION" "$build" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path, version, build = sys.argv[1:]
+          ns = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+          item = ET.parse(path).find("./channel/item")
+          assert item is not None
+          assert item.findtext("title") == version
+          assert item.findtext("sparkle:shortVersionString", namespaces=ns) == version
+          assert item.findtext("sparkle:version", namespaces=ns) == build
+          description = item.findtext("description") or ""
+          assert "## What's new" in description
+          assert "## Verification" in description
+          enclosure = item.find("enclosure")
+          assert enclosure is not None
+          assert enclosure.get("url", "").endswith(f"/v{version}/OverflowBar-{version}.zip")
+          assert enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature")
+          PY
+
+      - name: Update release description and appcast
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          appcast="$RUNNER_TEMP/overflowbar-release-notes/appcast.xml"
+          gh release upload "$tag" "$appcast" --repo EvanProgramming/OverflowBar --clobber
+          gh release edit "$tag" \
+            --repo EvanProgramming/OverflowBar \
+            --notes-file RELEASE_NOTES.md \
+            --latest
+          mkdir -p "$RUNNER_TEMP/overflowbar-release-notes/published"
+          gh release download "$tag" \
+            --repo EvanProgramming/OverflowBar \
+            --pattern appcast.xml \
+            --dir "$RUNNER_TEMP/overflowbar-release-notes/published"
+          cmp "$appcast" "$RUNNER_TEMP/overflowbar-release-notes/published/appcast.xml"
+          test "$(gh release view --json tagName --jq .tagName)" = "$tag"
+          gh release view "$tag" --json body --jq .body | grep -Fq "## What's new"
+          echo "Published appcast SHA-256: $(shasum -a 256 "$appcast" | awk '{print $1}')"

@@ -63,6 +63,12 @@ parity and monotonic build numbers, builds the DMG and updater ZIP, generates
 the signed appcast, and creates the GitHub Release with all updater assets. A
 stable release is explicitly marked as the latest stable version.
 
+If release notes need correction after publication, update `RELEASE_NOTES.md`
+on `main` and run **Refresh release notes** from Actions with the published
+version. It reuses the published updater ZIP, regenerates and verifies the
+signed Sparkle appcast, then refreshes the GitHub release description without
+rebuilding the released app.
+
 11. After publication, download the exact DMG and its `.sha256` asset from that
 release, verify them, then update `Casks/overflowbar.rb` to the published DMG's
 checksum. DMG container hashes can vary between builds, so the cask must match
