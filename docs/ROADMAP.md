@@ -1,38 +1,35 @@
 # Roadmap
 
-This roadmap describes direction, not guaranteed delivery dates. Priorities may change when macOS updates affect menu bar behavior.
+This roadmap describes possible work, not guaranteed delivery dates. macOS menu-bar changes can alter priorities.
 
-## Now — reliability and distribution
+## Reliability and distribution
 
-- [ ] Developer ID signing and Apple notarization
-- [ ] Automated clean-install smoke test for every release
-- [ ] Broader testing across MacBook notch sizes, external displays, and auto-hidden menu bars
-- [ ] Better app/title identification for generic `Item-0` windows
-- [ ] Diagnostics export with privacy-safe system and layout information
-- [ ] Harden activation against source apps that rebuild their status item at runtime
+- [ ] Broader physical coverage across macOS 15 and 26, Intel and Apple silicon, display layouts, notches, and auto-hidden menu bars
+- [ ] Complete third-party app and permission-state acceptance
+- [ ] Record 100 activation cycles and a two-hour soak
+- [ ] Clean-install smoke test for each release
+- [ ] Improve identification of generic status items where source information is available
+- [ ] Privacy-safe diagnostics that never export menu-bar captures or item names
+- [ ] Consider Developer ID signing and notarization
 
-## Next — faster daily use
+## Possible product work
 
 - [ ] Keyboard shortcut to toggle the second row
-- [ ] Search when the second row contains many items
+- [ ] Search for selected icons
 - [ ] Per-display placement preferences
-- [ ] Named visibility profiles for work, meetings, and travel
-- [ ] Optional separator groups and custom item ordering
-- [x] Update checks with release notes
+- [ ] Saved visibility profiles or custom item ordering
+- [ ] Localization
 
-## Later — ecosystem and polish
+## Current limits and non-goals
 
-- [ ] Universal binary release after compatibility testing
-- [ ] Localization framework and community translations
-- [ ] Signed Homebrew Cask after notarization and project adoption meet Homebrew requirements
-- [ ] Plugin-safe integration points for automation tools
-- [ ] Performance and energy diagnostics dashboard
+- The v1.5 release already ships a universal arm64/x86_64 binary.
+- macOS 15 is the deployment target; physical macOS 15 and Intel acceptance remains unverified.
+- macOS 27 and later use a fail-open path; runtime behavior has not been verified.
+- The app uses private macOS capture APIs, which remain compatibility and release-validation risks.
+- The project does not ask users to disable System Integrity Protection, upload screen captures or usage telemetry, or replace macOS Control Center.
 
-## Non-goals for the current release
+Discuss ideas on [GitHub Discussions](https://github.com/EvanProgramming/OverflowBar/discussions); file scoped, reproducible work in [Issues](https://github.com/EvanProgramming/OverflowBar/issues).
 
-- Disabling System Integrity Protection
-- Depending on private frameworks that prevent normal distribution
-- Uploading screen captures, menu bar contents, or usage telemetry
-- Replacing macOS Control Center
+## Related guides
 
-Use [GitHub Discussions](https://github.com/EvanProgramming/OverflowBar/discussions) for roadmap ideas and [Issues](https://github.com/EvanProgramming/OverflowBar/issues) for scoped, reproducible work.
+[Installation](INSTALLATION.md) · [Native validation](NATIVE_VALIDATION.md) · [Release checks](RELEASE_CHECKS_V1.5.md)

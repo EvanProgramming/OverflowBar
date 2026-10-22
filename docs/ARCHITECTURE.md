@@ -1,29 +1,46 @@
-# OverflowBar native engine
+# Architecture
 
-The menu bar contains two persistent native controls: `OverflowBarControlItem` and `OverflowBarHiddenSection`. Selected icons are arranged to the left of the divider. A 10,000-point native separator conceals that section; the arrow opens a captured, floating second row.
+OverflowBar keeps SwiftUI presentation, native state, and macOS services in separate layers. The app owns preferences and visible state; serialized native-engine work resolves and operates the real status items.
 
-`NativeMenuBarEngine` is the serialized boundary for discovery, layout application, activation, cancellation and recovery. `MenuBarItemStore` presents state and owns preferences, not event posting. Source provenance and the exact Ice/Thaw pins are in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+```mermaid
+flowchart LR
+    UI["SwiftUI onboarding, settings and panel"] --> Store["MenuBarItemStore"]
+    Store --> Prefs["PreferencesStore"]
+    Store --> Engine["NativeMenuBarEngine"]
+    Engine --> WorkerClient["EngineWorkerClient"]
+    Engine --> EventRelay["NativeEventRelay"]
+    WorkerClient --> Discovery["Authenticated EngineWorker"]
+    WorkerClient --> Capture["Authenticated CaptureWorker"]
+    Discovery --> Shared["EngineShared identity and peer verification"]
+    Capture --> Shared
+    EventRelay --> MacOS["macOS Accessibility and WindowServer"]
+    Discovery --> MacOS
+    Capture --> MacOS
+    Engine --> MacOS
+```
 
-## Identity
+## Identity and discovery
 
-Persistent identities come from a resolved originating bundle and Accessibility identifier/name. Window IDs and PIDs are session handles. On macOS 26, Control Center owns the item windows: source attribution walks each application's `AXExtrasMenuBar`, prefers exact backing-window identity, and accepts only unique same-row geometric fallback. Ambiguous items stay visible and cannot be guessed click targets. On macOS 15, native window ownership also identifies the source.
+A selected item's persistent identity uses its originating application bundle and Accessibility identifier or name. Window IDs and process IDs are temporary handles, refreshed before native operations. On macOS 26, Control Center hosts many status-item windows; discovery attributes their source using the originating app's Accessibility extras, exact backing-window matches, and unique same-row geometric matches. Ambiguous items remain visible.
 
-## Helpers
+## Helpers and capture
 
-Two embedded XPC services compile the shared worker implementation. `EngineWorker` performs bounded discovery/AX activation; `CaptureWorker` performs ScreenCaptureKit and private SkyLight capture. Both join the user's existing session. Separate connections prevent capture recycling from interrupting an in-flight move.
+The app runs authenticated discovery and capture XPC helpers. Discovery performs bounded status-item resolution and Accessibility activation. Capture performs ScreenCaptureKit and private SkyLight capture. Separate connections allow the capture helper to be recycled without interrupting layout work.
 
-Every connection validates the current packaged peer's designated code-signing requirement before resume, including ad-hoc code hashes. There is no same-Team-ID requirement and no unauthenticated fallback. Requests time out after three seconds; capture interruption permits one reconnect/retry. Pixel dimensions, total payloads and requested status windows are bounded. Private capture attempts count toward recycling even when they fail.
+Each service checks the calling app's designated code-signing requirement before accepting a request. Requests and image payloads are bounded. Screen captures stay in memory. The capture worker has a bounded retry path; there is no unauthenticated fallback.
 
 ## Layout and activation
 
-A stable native snapshot precedes automatic layout. The two-section planner keeps the divider fixed and minimizes moves with upstream LCS logic. Moves share an absolute 15-second deadline, verify fresh endpoints and settled placement, and release taps/buttons/cursor state on every exit. Automatic repeats and failed batches are rationed by the upstream circuit breaker. Only verified placement is persisted; partial results remain partial.
+The engine serializes discovery, layout application, activation, cancellation, and recovery. It plans placement against a current native snapshot, fixes the divider, and applies a shared deadline. Each move checks fresh endpoints and settled placement. Cancellation and failure release input state; only verified placement is persisted.
 
-Activation resolves the source again, uses native AX press for Electron when advertised, otherwise posts scoped native events. Offscreen targets temporarily move beside the arrow. A delivered event is not menu success: the response verifier observes a new owner interface or item size/disappearance. An uncertain menu stays accessible. Restoration uses original neighbor identities only after a positively observed close.
+Activation resolves its source again, delivers a supported Accessibility press or scoped native event, and verifies an observable menu, popover, or status-item change. If the result is uncertain, the item stays accessible. Restoration uses saved neighbor identities only after the engine observes the native interface close.
 
-## Lifecycle
+## Lifecycle and limits
 
-Desired hidden state and realized native visibility are separate. Quit shrinks the divider without erasing the preference. Manual app launch and Finder reopen display setup/overview; login startup stays in the background. The panel refreshes captured icons at at most two batches per second, only while visible. Permission denial is explicit. macOS 27+ fails open and does not run native management.
+Preferences store selected item identities and the desired hidden state. The app distinguishes requested layout from realized macOS visibility. Quitting reveals the originals without deleting saved choices. The capture panel refreshes only while visible. Permission denial is shown explicitly.
 
-## Release acceptance
+On macOS 27 and later, the engine fails open and disables native menu-bar management. Release source and deployment metadata do not establish runtime compatibility; use the [release acceptance report](RELEASE_CHECKS_V1.5.md) and [physical validation checklist](NATIVE_VALIDATION.md) for evidence and limits.
 
-Builds and generic fallback icons cannot establish GUI reliability. The [validation checklist](NATIVE_VALIDATION.md) tracks actual native hiding, recognizable previews, intended menus, 100 cycles and a two-hour soak on macOS 15 and 26.4. The v1.5.0 release report records which physical checks were not run; they must not be treated as passed.
+## Related guides
+
+[Development](DEVELOPMENT.md) · [Permissions](PERMISSIONS.md) · [Native validation](NATIVE_VALIDATION.md) · [Third-party notices](../THIRD_PARTY_NOTICES.md)

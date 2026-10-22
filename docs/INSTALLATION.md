@@ -1,31 +1,46 @@
 # Installation
 
-OverflowBar 1.5.0 is the latest stable release. It supports macOS 15 and later on Intel and Apple silicon and includes the updated native menu bar engine. The previous stable [v1.0.19 release](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.0.19) remains available for manual rollback.
+## Compatibility
 
-## Install
+| macOS | Release package | Runtime status |
+|---|---|---|
+| macOS 15 | Universal binary; deployment target 15.0 | No physical macOS 15 machine was available for v1.5.0 acceptance. |
+| macOS 26 | Universal binary; deployment target 15.0 | The release audit ran on macOS 26.4. A subset of native-fixture workflows passed; this does not establish the full GUI matrix. |
+| macOS 27 and later | Universal binary; deployment target 15.0 | Source has a fail-open path that leaves icons accessible. macOS 27 runtime behavior was not tested. |
 
-Download the current OverflowBar DMG from the [official GitHub releases](https://github.com/EvanProgramming/OverflowBar/releases/latest), drag the app to Applications and open it. The first launch opens setup; later launches open Menu Bar.
+The v1.5.0 release contains both Apple silicon (arm64) and Intel (x86_64) slices. Intel hardware was not available for physical testing.
 
-## First launch and Gatekeeper
+## Install from GitHub
 
-Community builds remain ad-hoc signed and are not notarized. Follow macOS's **Open Anyway** flow for a build you trust if Gatekeeper blocks launch. No paid Developer ID certificate is required. Signed Sparkle updates are enabled and retain manual installation confirmation.
+1. Download the OverflowBar DMG from the [latest stable release](https://github.com/EvanProgramming/OverflowBar/releases/latest).
+2. Open the DMG and drag OverflowBar to Applications.
+3. Open OverflowBar. First launch opens setup; enable Accessibility, optionally enable Screen Recording, and choose icons.
 
-## Permissions
+The current DMG is OverflowBar-1.5.0.dmg. Community builds are ad-hoc signed and are not notarized. Only download builds from the official release. If macOS blocks a trusted copy, follow Apple's [Open Anyway instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac). See [Permissions](PERMISSIONS.md) before granting access.
 
-Accessibility enables automatic icon arrangement and native activation. Screen Recording enables actual status-icon captures. Captures are local and in-memory; see [privacy](../PRIVACY.md). Screen Recording changes can require app relaunch. After replacing a local ad-hoc-signed build in Applications, remove the old OverflowBar entry and add `/Applications/OverflowBar.app` again under **Privacy & Security > Accessibility** and **Screen & System Audio Recording**, then quit and reopen OverflowBar. The ad-hoc signature changes between builds, so the old entry may look enabled while the new build is denied.
+## Install with Homebrew
 
-Embedded discovery and capture helpers are ad-hoc signed too. They authenticate the currently packaged app by designated code requirement, without a Team ID.
+The repository's third-party Cask provides an alternative:
 
-## Updating
+    brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
+    brew install --cask EvanProgramming/overflowbar/overflowbar
 
-Preserve the existing app identity and preferences. If setup opens again, choose **Set Up Later** to leave your current icon layout unchanged. Quitting shows icons in the menu bar and keeps your saved choices.
+See [Homebrew](HOMEBREW.md) for trust prompts and upgrades. Homebrew does not grant macOS privacy permissions.
+
+## Update or roll back
+
+Existing users can check for updates in the app. Sparkle verifies the signed update and asks before installation. Updates preserve the app identity and preferences. An ad-hoc-signed replacement can require permission reauthorization; see [After replacing a local build](PERMISSIONS.md#after-replacing-a-local-build).
+
+Sparkle does not downgrade. If you need to roll back, manually install the previous stable [v1.0.19 release](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.0.19).
 
 ## Uninstall
 
-Quit OverflowBar to reveal originals, then remove the app from Applications. Optional cleanup can remove its own preference, cache and HTTP-storage files. Never delete another application's menu-bar preferences.
+Quit OverflowBar first. Quitting reveals managed icons while retaining your saved selection. Then remove OverflowBar from Applications. Homebrew users can run:
 
-## macOS blocks the arrow even with “Allow in the Menu Bar” enabled
+    brew uninstall --cask overflowbar
 
-Some Tahoe installations retain cross-app ownership references in Control Center’s protected `trackedApplications` state. A disabled app can then block OverflowBar’s items. This matches the failure documented in [CodexBar issue 1440](https://github.com/steipete/CodexBar/issues/1440). A status-item proxy window or enabled toggle does not prove the real arrow/divider is present.
+Removing the app is sufficient to uninstall it. Do not delete preferences belonging to other apps.
 
-OverflowBar makes one bounded control recreation attempt and leaves native icons accessible if it fails. Do not repeatedly reset Control Center, edit its protected preferences, or change the app’s bundle identifier. OverflowBar does not ship a Control Center repair tool. If its arrow remains unavailable, use **Settings → More → Reset Icon Selection** to restore all icons, then report the issue with your macOS version and OverflowBar build.
+## Related guides
+
+[Permissions](PERMISSIONS.md) · [Homebrew](HOMEBREW.md) · [Using OverflowBar](USAGE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Release validation](RELEASE_CHECKS_V1.5.md)

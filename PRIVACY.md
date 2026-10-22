@@ -1,11 +1,25 @@
 # Privacy
 
-OverflowBar does not send icon captures, native menu information or layout selections to a server. Sparkle contacts the configured GitHub update feed to check signed updates.
+OverflowBar processes menu-bar layout and item captures locally. It does not send screen captures, menu contents, or layout selections to a server.
 
-Accessibility is used to attribute menu-bar controls and perform native arrangement/activation. Native mouse events and temporary pointer movement are permitted in v1.5. Operations are serialized, bounded and cleaned up on failure or cancellation.
+## Permissions and local processing
 
-Screen Recording is used for point-in-time captures of selected native status-item windows. Two authenticated local helper services isolate blocking discovery and capture. Captures remain in bounded memory; no screenshot history is recorded. The recyclable capture process confines the system private-capture leak.
+Accessibility identifies menu-bar controls and supports arrangement and activation. Native menu-bar operations can post mouse events and temporarily move and restore the pointer. Operations are bounded, cancellable, and cleaned up after failure.
 
-Permission denial is visible in setup/overview. Unknown native controls are not guessed or clicked. Private macOS APIs are used for compatibility with offscreen menu-bar windows and are a release-validation risk.
+Screen & System Audio Recording enables point-in-time captures of selected status-item windows. Captures stay in bounded memory, are not uploaded, and are not kept as screenshot history. The recyclable capture helper contains the system's private-capture leak.
 
-Ad-hoc signing is retained. Updates can require macOS permission regranting. Only the installed build should be added to Privacy & Security; unrelated apps' grants remain untouched.
+Permission denial is shown in setup and settings. Unknown controls are not guessed or clicked. The app uses private macOS APIs to support off-screen menu-bar windows; operating-system changes can affect compatibility.
+
+## Network access
+
+Sparkle contacts the configured GitHub release feed to check for signed updates. The updater asks before installing. OverflowBar does not send captures or item choices with these checks.
+
+## Signing and permission changes
+
+Community builds are ad-hoc signed. Replacing a local build can require permission reauthorization. Remove only OverflowBar's stale permission entry; leave other applications' grants unchanged.
+
+See [Permissions](docs/PERMISSIONS.md) for purpose, denial, and recovery details.
+
+## Related guides
+
+[Permissions](docs/PERMISSIONS.md) · [Installation](docs/INSTALLATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)

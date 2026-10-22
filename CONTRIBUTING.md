@@ -1,53 +1,30 @@
-# Contributing to OverflowBar
+# Contributing
 
-Thanks for helping improve OverflowBar. Menu bar behavior varies by macOS version, display topology, and source application, so reproducible reports and focused changes are especially valuable.
+Menu-bar behavior varies by macOS release, display setup, and source application. Focused changes and reproducible reports help protect safe recovery.
 
-## Before opening an issue
+## Before filing a bug
 
-- Search existing issues.
-- Use **Settings → Safe Reset** to reveal the group.
-- Accessibility and Screen Recording are optional; use them only for discovery, activation, and previews.
-- Reproduce with the latest release.
+Search existing reports and reproduce on the latest release when possible. Include the macOS and OverflowBar versions, Mac and display setup, source app, expected and actual behavior, and exact steps. Remove private menu-bar or screen content from screenshots and logs.
 
-Bug reports should include the macOS version, Mac model/display setup, source app, expected behavior, actual behavior, and exact reproduction steps. Do not attach screenshots that expose private menu bar or screen content without reviewing them first.
+If icons are hidden unexpectedly, use **Settings → More → Reset Icon Selection**. Normal quit also reveals icons while preserving the saved selection.
 
-## Development setup
+## Build and test
 
-1. Use macOS 15 or later and Xcode 16 or later.
-2. Clone the repository.
-3. Open `OverflowBar.xcodeproj`.
-4. Build the `OverflowBar` scheme.
-5. Grant optional Accessibility or Screen Recording permission only when testing those features.
-
-Command-line build:
-
-```bash
-xcodebuild \
-  -project OverflowBar.xcodeproj \
-  -scheme OverflowBar \
-  -configuration Debug \
-  -destination 'platform=macOS' \
-  CODE_SIGNING_ALLOWED=NO \
-  build
-```
+Use macOS 15 or later and Xcode 26. Follow [Development](docs/DEVELOPMENT.md) for the project layout, Debug build, XCTest, helper tests, and native acceptance requirements.
 
 ## Pull requests
 
-- Keep each pull request focused.
-- Explain user impact and the macOS versions tested.
-- Preserve the reveal-on-reset and reveal-on-quit paths; do not add synthetic input or cursor control.
-- Avoid private frameworks and any design that requires disabling platform security.
-- Add or update documentation for user-visible behavior.
-- Run `git diff --check` and both Debug and Release builds.
-
-UI changes should respect Reduce Motion, safe areas, light/dark appearances, and small displays.
-
-## Architecture
-
-Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing scanning, capture, divider geometry, or activation. Menu-bar placement changes across macOS releases; verify each supported version on live hardware.
+- Keep changes focused and explain user impact and macOS versions tested.
+- Preserve cancellation, timeouts, reveal-on-reset, and reveal-on-quit behavior.
+- Native operations may briefly move and restore the pointer; preserve bounded input and cleanup on every exit.
+- Avoid designs that require disabling System Integrity Protection. The current engine already uses private macOS APIs; treat them as a compatibility risk and preserve existing safeguards.
+- Document user-visible changes and keep third-party provenance and required license notices intact.
+- Run git diff --check, project builds, tests, and relevant validation checks before submitting.
 
 ## Security and privacy
 
-Do not open a public issue for a vulnerability. Follow [SECURITY.md](SECURITY.md). Changes must preserve the local-only capture model documented in [PRIVACY.md](PRIVACY.md).
+Do not report vulnerabilities in a public issue. Follow [SECURITY.md](SECURITY.md). Preserve the local-only capture model in [Privacy](PRIVACY.md). Read the [architecture guide](docs/ARCHITECTURE.md) before changing discovery, capture, movement, or activation.
 
-The v1.5 native engine uses pinned Ice/Thaw GPL code; preserve provenance and imported notices. Read [native validation](docs/NATIVE_VALIDATION.md) before claiming runtime reliability.
+## Related guides
+
+[Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Privacy](PRIVACY.md) · [Security policy](SECURITY.md)

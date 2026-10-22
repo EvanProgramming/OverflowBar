@@ -1,59 +1,38 @@
-# Alternative Homebrew installation
+# Install with Homebrew
 
-The DMG is the recommended installation path for most users. Homebrew is an
-alternative for users who prefer package-manager workflows. The third-party
-Homebrew Cask uses the versioned DMG and SHA-256 checksum published by the
-matching GitHub Release.
+The DMG is the recommended path for most users. Homebrew is an alternative for users who prefer package-manager workflows. This repository includes a third-party Homebrew Cask for the published DMG.
 
-See the [main installation guide](INSTALLATION.md) for the recommended DMG flow.
+## Install from this repository
 
-## Install from the current repository
+The tap uses a custom name. Supply the repository URL and use the fully qualified cask token:
 
-The source repository contains the Cask under `Casks/`. Homebrew can use this
-repository as a tap when the repository URL is supplied explicitly:
+    brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
+    brew install --cask EvanProgramming/overflowbar/overflowbar
 
-```bash
-brew tap EvanProgramming/overflowbar https://github.com/EvanProgramming/OverflowBar.git
-brew install --cask EvanProgramming/overflowbar/overflowbar
-```
+Homebrew may ask you to trust a third-party tap or cask, depending on your local policy. Only trust it if you verified the cask source and want Homebrew to use it.
 
-The fully qualified cask name makes Homebrew load only the requested item from
-the non-official tap. If a local Homebrew policy requires explicit trust, use:
+## Upgrade or uninstall
 
-```bash
-brew trust --cask EvanProgramming/overflowbar/overflowbar
-```
+    brew update
+    brew outdated --cask
+    brew upgrade --cask overflowbar
 
-After installation, normal Homebrew maintenance applies:
+To remove the app:
 
-```bash
-brew update
-brew outdated --cask
-brew upgrade --cask overflowbar
-```
+    brew uninstall --cask overflowbar
 
 ## First launch and permissions
 
-The current community release is ad-hoc signed and not Apple-notarized. This
-means Homebrew can install it, but macOS may block the first launch. If that
-happens, Control-click **OverflowBar** in Applications and choose **Open**.
+The community release is ad-hoc signed and not notarized. If macOS blocks the official release, follow Apple's [Open Anyway instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac). Accessibility enables arrangement and activation. Screen Recording enables live previews. Homebrew cannot grant macOS privacy permissions for you; see [Permissions](PERMISSIONS.md).
 
-Accessibility is required for automatic icon arrangement and native clicks.
-Screen Recording enables live previews. Without these permissions, setup reports
-a limited state. Homebrew cannot grant permissions on
-the user's behalf.
+## Maintainer release checks
 
-## Release maintenance
+After publication, update Casks/overflowbar.rb to the release version and the SHA-256 from that release's .dmg.sha256 asset. Verify the checksum against the published DMG, then run:
 
-For a release, update `Casks/overflowbar.rb` to the new version before tagging.
-After CI publishes the DMG, set `sha256` to the exact digest from the release's
-`.dmg.sha256` asset, verify it against the downloaded DMG, and push the update to
-the default branch. DMG hashes may vary between builds. Validate cask syntax
-and metadata with:
+    bash scripts/validate-homebrew-cask.sh
 
-```bash
-bash scripts/validate-homebrew-cask.sh
-```
+See [Releasing](RELEASING.md) for the release sequence.
 
-The `Casks/` directory can later be moved unchanged into a dedicated
-`homebrew-overflowbar` repository if a separate tap repository is preferred.
+## Related guides
+
+[Installation](INSTALLATION.md) · [Permissions](PERMISSIONS.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Releasing](RELEASING.md)
