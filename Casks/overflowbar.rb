@@ -1,6 +1,6 @@
 cask "overflowbar" do
   version "1.5.0"
-  sha256 "134257ed76438a29b4358840036dd6fcc4f5b102fa1544437b0b2714aafc9d7d"
+  sha256 "7d1dd8ea6268bd138e78c327659db17f74833750ed34bddc12efec76f7d2bb3c"
 
   url "https://github.com/EvanProgramming/OverflowBar/releases/download/v#{version}/OverflowBar-#{version}.dmg"
   name "OverflowBar"

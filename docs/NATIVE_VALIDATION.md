@@ -18,6 +18,4 @@ Helper tests must demonstrate authenticated ad-hoc discovery, rejection of misma
 
 ## Current evidence
 
-The local host is macOS 26.4. Authenticated worker and policy XCTest checks are recorded in the implementation ledger. Real capture/activation requires explicit permission grants to the installed candidate. macOS 15 physical GUI coverage and the complete cycle/soak matrix remain release blockers until recorded; no claim of stable native behavior may replace them.
-
-No v1.5.0 release, tag or published cask update should occur before these gates pass.
+The local host is macOS 26.4. Authenticated worker and policy XCTest checks are recorded in the implementation ledger. Real capture/activation requires explicit permission grants to the installed app. The v1.5.0 release report records macOS 15 physical GUI coverage and the complete cycle/soak matrix as not tested. They were waived for this release and remain open validation work; no claim that the full physical matrix passed should be made.

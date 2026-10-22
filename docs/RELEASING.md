@@ -46,16 +46,28 @@ There is no release solely to satisfy a calendar. Important fixes should be rele
    ```
 
 8. Commit and push the release source.
-9. Tag the exact release commit:
+9. Run **Release preflight** from Actions on that exact commit. It checks the
+   production signing key, serves a staged feed locally, then probes and
+   installs the signed ZIP over a disposable copy of the published v1.0.19 app.
+   The preflight does not publish; its localhost appcast is test evidence and
+   must not be used as a release feed.
+10. Create a signed annotated tag on the verified commit and push it:
 
    ```bash
-   git tag v<version>
+   git tag -s v<version> -m "OverflowBar <version>"
    git push origin v<version>
    ```
 
 The tag triggers `.github/workflows/release.yml`, which validates version
 parity and monotonic build numbers, builds the DMG and updater ZIP, generates
-the signed appcast, and creates the GitHub Release with all updater assets.
+the signed appcast, and creates the GitHub Release with all updater assets. A
+stable release is explicitly marked as the latest stable version.
+
+11. After publication, download the exact DMG and its `.sha256` asset from that
+release, verify them, then update `Casks/overflowbar.rb` to the published DMG's
+checksum. DMG container hashes can vary between builds, so the cask must match
+the artifact CI actually published. Push the checksum update to the default
+branch so the documented Homebrew tap receives it.
 
 ## Signing
 

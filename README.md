@@ -2,7 +2,7 @@
 
 OverflowBar v1.5 gives selected menu bar icons a second row. Open an icon there to use its original menu or popover.
 
-**v1.5.0 is a candidate, not a published stable release.** Actual native hiding, preview/activation cycles and a two-hour soak must pass on macOS 15 and 26.4 before publication. See [validation gates](docs/NATIVE_VALIDATION.md).
+**v1.5.0 is the latest stable release**, with an updated native menu bar engine. Existing users can install it through the signed in-app updater or download the [release](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.5.0). The previous stable [v1.0.19 release](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.0.19) remains available as a manual fallback.
 
 - Choose menu bar icons one at a time.
 - Source-aware Tahoe discovery, including Control Center-hosted windows.

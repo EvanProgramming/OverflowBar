@@ -33,7 +33,7 @@ xcodebuild \
     -scheme OverflowBar \
     -configuration Release \
     -derivedDataPath "$DERIVED_DATA" \
-    "${PACKAGE_CACHE_ARGS[@]}" \
+    ${PACKAGE_CACHE_ARGS[@]+"${PACKAGE_CACHE_ARGS[@]}"} \
     ARCHS='arm64 x86_64' \
     ONLY_ACTIVE_ARCH=NO \
     build

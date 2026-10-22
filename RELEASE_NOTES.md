@@ -1,9 +1,9 @@
-# OverflowBar v1.5.0 candidate — native engine replacement
+# OverflowBar 1.5.0 — Native Engine Update
 
-This candidate replaces the manual-grouping backend with a focused Ice/Thaw engine port. It restores per-icon selection, native drag arrangement, correctly attributed source applications, genuine second-row previews and native-menu activation.
+OverflowBar 1.5.0 is the latest stable release and replaces the old manual-grouping backend with an updated native menu bar engine based on Ice/Thaw. Choose icons individually, arrange them in a second row, and open their original menus or popovers from the panel.
 
-The app retains its bundle identity, status autosave names, ad-hoc signing, login preference and signed Sparkle updates. v1.5 adopts GPL-3.0 with upstream provenance. Manual launch reopens setup/overview, and quit reveals originals without clearing the desired hidden state.
+The update also improves source-aware discovery, captured previews, keyboard navigation, safe restoration, and helper isolation. The app keeps its existing bundle identity and preferences, so signed Sparkle updates remain available to existing users. The engine changes are documented with upstream provenance in [third-party notices](THIRD_PARTY_NOTICES.md); v1.5.0 is distributed under GPL-3.0.
 
-Accessibility is required for automatic arrangement and activation. Screen Recording enables genuine previews. Native operations can move the pointer. Timeouts, cancellation, response verification and an automatic-move circuit breaker replace unbounded retries and the former staging target.
+OverflowBar supports macOS 15 and later on Intel and Apple silicon. Accessibility is required for automatic arrangement and native activation; Screen & System Audio Recording enables live previews. The community build is ad-hoc signed and not notarized; see the [installation guide](docs/INSTALLATION.md) if macOS blocks first launch.
 
-**Not released:** physical macOS 15/26.4 validation, real native-menu cycles, helper permission attribution and the two-hour soak must pass first. See [release gates](docs/NATIVE_VALIDATION.md). Generic placeholders and an expanded separator do not count as proof.
+The previous stable release, [v1.0.19](https://github.com/EvanProgramming/OverflowBar/releases/tag/v1.0.19), remains available as a manual fallback.

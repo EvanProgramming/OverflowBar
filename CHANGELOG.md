@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.5.0 — candidate
+## 1.5.0 — 2026-10-22
 
-- Replace manual grouping with the GPL Ice/Thaw native-item engine port.
-- Restore per-icon selection, native arrangement, source-aware discovery and native menus from the second row.
-- Isolate discovery and recyclable capture in authenticated ad-hoc XPC services.
-- Separate desired visibility from quit cleanup; manual launch/reopen shows overview.
-- Release remains gated on actual native GUI checks, 100 cycles and a two-hour soak.
+- Replace the old manual-grouping backend with an updated native menu bar engine based on Ice/Thaw.
+- Choose icons individually, arrange them in a second row, and open their original menus or popovers from the panel.
+- Improve source-aware discovery, captured previews, keyboard navigation, safe restoration, and helper isolation.
+- Preserve the existing app identity, preferences, and signed Sparkle update path.
+- Keep macOS 15 and later support on Intel and Apple silicon; retain ad-hoc community signing.
 
 ## [Unreleased]
 

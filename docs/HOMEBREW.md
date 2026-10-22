@@ -45,8 +45,11 @@ the user's behalf.
 
 ## Release maintenance
 
-Before creating a release tag, update `Casks/overflowbar.rb` so its `version`
-and `sha256` match the DMG that will be published by that tag. Validate it with:
+For a release, update `Casks/overflowbar.rb` to the new version before tagging.
+After CI publishes the DMG, set `sha256` to the exact digest from the release's
+`.dmg.sha256` asset, verify it against the downloaded DMG, and push the update to
+the default branch. DMG hashes may vary between builds. Validate cask syntax
+and metadata with:
 
 ```bash
 bash scripts/validate-homebrew-cask.sh

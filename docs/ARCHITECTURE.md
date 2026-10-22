@@ -26,4 +26,4 @@ Desired hidden state and realized native visibility are separate. Quit shrinks t
 
 ## Release acceptance
 
-Builds and generic fallback icons cannot establish GUI reliability. The [validation checklist](NATIVE_VALIDATION.md) requires actual native hiding, real recognizable previews, intended menus, 100 cycles and a two-hour soak on macOS 15 and 26.4. v1.5.0 remains unpublished until those gates pass.
+Builds and generic fallback icons cannot establish GUI reliability. The [validation checklist](NATIVE_VALIDATION.md) tracks actual native hiding, recognizable previews, intended menus, 100 cycles and a two-hour soak on macOS 15 and 26.4. The v1.5.0 release report records which physical checks were not run; they must not be treated as passed.

@@ -121,9 +121,14 @@ jobs:
               --verify-tag
           else
             release_assets+=("dist/appcast.xml")
+            release_title="OverflowBar ${version}"
+            if [[ "$version" == "1.5.0" ]]; then
+              release_title="OverflowBar 1.5.0 — Native Engine Update"
+            fi
             gh release create "${GITHUB_REF_NAME}" \
               "${release_assets[@]}" \
-              --title "OverflowBar ${version}" \
+              --title "$release_title" \
               --notes-file "$notes_file" \
+              --latest \
               --verify-tag
           fi

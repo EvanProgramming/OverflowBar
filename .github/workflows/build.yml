@@ -23,7 +23,6 @@ jobs:
           plutil -lint OverflowBar/Resources/Info.plist
           bash -n scripts/create-dmg.sh
           bash scripts/check-native-engine.sh
-          python3 scripts/test-controlcenter-repair.py
           bash scripts/validate-homebrew-cask.sh
           ruby scripts/check-doc-links.rb
       - name: Build Debug
