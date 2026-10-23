@@ -12,7 +12,7 @@ import Combine
     var nativeOperationInProgress: Bool { operationProgress != nil || activationTask != nil }
     @Published private(set) var selectedIDs: [String]
     private let preferences: PreferencesStore
-    private let engine = NativeMenuBarEngine()
+    private let engine: MenuBarEngine
     private var records: [String: EngineItemRecord] = [:]
     private var dividerFrame: CGRect?
     private var refreshTask: Task<Void, Never>?
@@ -21,6 +21,7 @@ import Combine
     var onControlsRecoveryRequested: (() -> Void)?
     var onShowPanelRequested: (() -> Void)?
     private var layoutTask: Task<Void, Never>?
+    private var retryTask: Task<Void, Never>?
     private let captureCallbacks = CaptureCompletionQueue()
     private var captureGeneration = 0
     private var refreshRequested = false
@@ -31,18 +32,20 @@ import Combine
     private var observers: [NSObjectProtocol] = []
     private var timer: Timer?
     var onLayoutStateChanged: (() -> Void)?
-    init(preferences: PreferencesStore = PreferencesStore()) {
+    init(preferences: PreferencesStore = PreferencesStore(), engine: MenuBarEngine? = nil) {
         self.preferences = preferences
+        self.engine = engine ?? NativeMenuBarEngine()
         selectedIDs = preferences.selectedNativeItems
         layoutManagementEnabled = preferences.layoutManagementEnabled
-        engine.visibility = { [weak self] hidden in
+        self.engine.visibility = { [weak self] hidden in
             self?.groupHidden = hidden; self?.onLayoutStateChanged?()
         }
-        engine.message = { [weak self] text in self?.lastActivationError = text }
-        engine.progress = { [weak self] text in self?.operationProgress = text }
-        engine.recoveryRequired = { [weak self] in self?.automaticManagementSuspended = true }
+        self.engine.message = { [weak self] text in self?.lastActivationError = text }
+        self.engine.progress = { [weak self] text in self?.operationProgress = text }
+        self.engine.recoveryRequired = { [weak self] in self?.automaticManagementSuspended = true }
     }
     var preferencesExplanationPending: Bool { false }
+    var canRetryHiding: Bool { layoutManagementEnabled && !selectedIDs.isEmpty && activationTask == nil && retryTask == nil }
     var overflowItems: [MenuBarItem] { selectedIDs.compactMap { id in items.first { $0.id == id && $0.nativeRecord?.persistentID != nil } } }
     func startMonitoring() {
         refresh()
@@ -68,6 +71,24 @@ import Combine
                 let snapshot = try await self.engine.discover()
                 if self.discoveryFailed { self.layoutOperationMessage = nil; self.discoveryFailed = false }
                 self.update(snapshot)
+                let eligibleIDs = snapshot.compactMap { record -> String? in
+                    guard let id = record.persistentID, !record.isOwnControl,
+                          !MenuBarSystemItemClassifier.isProtected(record.title, owner: record.bundleIdentifier) else { return nil }
+                    return id
+                }
+                let savedKnownIDs = self.preferences.knownNativeItems
+                let priorOrder = self.preferences.verifiedNativeOrder
+                var knownIDs = Set(savedKnownIDs ?? (priorOrder.isEmpty ? eligibleIDs : priorOrder))
+                let newIDs = savedKnownIDs == nil && priorOrder.isEmpty ? [] : eligibleIDs.filter { !knownIDs.contains($0) }
+                knownIDs.formUnion(eligibleIDs)
+                if knownIDs != Set(savedKnownIDs ?? []) { self.preferences.knownNativeItems = knownIDs.sorted() }
+                let newlySelected = newIDs.filter { self.preferences.layoutManagementEnabled && !self.selectedIDs.contains($0) }
+                if !newlySelected.isEmpty {
+                    self.selectedIDs.append(contentsOf: newlySelected)
+                    self.preferences.selectedNativeItems = self.selectedIDs
+                    self.needsReapply = false
+                    self.applyLayout(automatic: true)
+                }
                 let signature = Set(snapshot.map { "\($0.windowID)|\($0.persistentID ?? "?")|\(Int($0.frame.minX))|\(Int($0.frame.minY))" })
                 if signature == self.previousSignature, self.preferences.nativeSelectionMigrationPending,
                    let divider = snapshot.first(where: { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarHiddenSection" }),
@@ -79,7 +100,7 @@ import Combine
                 let resolvedIDs = Set(snapshot.compactMap(\.persistentID))
                 let hasDivider = snapshot.contains { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarHiddenSection" }
                 let hasArrow = snapshot.contains { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarControlItem" }
-                if self.needsReapply && signature == self.previousSignature && !signature.isEmpty,
+                if self.layoutTask == nil, self.needsReapply && signature == self.previousSignature && !signature.isEmpty,
                    let divider = snapshot.first(where: { $0.isOwnControl && $0.accessibilityIdentifier == "OverflowBarHiddenSection" }),
                    NativeLayoutPolicy.isReadyToReapply(selected: Set(self.selectedIDs), resolved: resolvedIDs, hasDivider: hasDivider, hasArrow: hasArrow) {
                     self.needsReapply = false
@@ -145,6 +166,21 @@ import Combine
             } catch { self.automaticManagementSuspended = true; self.layoutOperationMessage = error.localizedDescription }
             self.layoutTask = nil; self.operationProgress = nil
             if self.refreshRequested { self.refreshRequested = false; self.refresh() }
+        }
+    }
+    func retryHidingSelectedIcons() {
+        guard canRetryHiding else { return }
+        retryTask = Task { [weak self] in
+            guard let self else { return }
+            let currentLayout = self.layoutTask
+            currentLayout?.cancel()
+            self.engine.cancel()
+            await currentLayout?.value
+            self.automaticManagementSuspended = false
+            self.applyLayout(automatic: false)
+            let retryLayout = self.layoutTask
+            await retryLayout?.value
+            self.retryTask = nil
         }
     }
     func cancelOperation() {

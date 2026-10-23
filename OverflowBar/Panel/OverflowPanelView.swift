@@ -26,7 +26,6 @@ struct OverflowPanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(panelAnimation, value: presentation.isPresented)
-        .saturation(0)
     }
 
     @ViewBuilder

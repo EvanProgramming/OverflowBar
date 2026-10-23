@@ -74,6 +74,10 @@ final class PreferencesStore {
         get { defaults.stringArray(forKey: "verifiedNativeOrderV15") ?? [] }
         set { defaults.set(newValue, forKey: "verifiedNativeOrderV15") }
     }
+    var knownNativeItems: [String]? {
+        get { defaults.object(forKey: "knownNativeItemsV15") as? [String] }
+        set { defaults.set(newValue, forKey: "knownNativeItemsV15") }
+    }
     var nativeSelectionMigrationPending: Bool { !defaults.bool(forKey: "didResolveNativeSelectionV15") }
     func importNativeSelection(resolvedIDs: Set<String>, observedGroup: [String]) {
         guard nativeSelectionMigrationPending, selectedNativeItems.isEmpty else { return }

@@ -7,6 +7,10 @@ import OSLog
 
 @MainActor protocol MenuBarEngine: AnyObject {
     var records: [EngineItemRecord] { get }
+    var visibility: ((Bool) -> Void)? { get set }
+    var message: ((String) -> Void)? { get set }
+    var progress: ((String?) -> Void)? { get set }
+    var recoveryRequired: (() -> Void)? { get set }
     func discover() async throws -> [EngineItemRecord]
     func apply(selected: [String], hidden: Bool, automatic: Bool) async throws
     func capture(_ items: [EngineItemRecord]) async -> [EngineCaptureFrame]

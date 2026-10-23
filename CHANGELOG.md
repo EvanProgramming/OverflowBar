@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.1 — 2026-10-23
+
+- Automatically select and hide newly appearing eligible menu bar icons when hiding is enabled, while leaving the first discovered inventory unchanged and excluding protected or unstable items.
+- Add a Settings toolbar retry that reveals the current layout, waits for an active operation to stop, and reapplies the saved selection without changing preferences.
+- Preserve color behind the panel's Liquid Glass while keeping menu bar icons grayscale.
+- Verify with 71 passing XCTest cases and one permission-dependent skip, Debug and universal Release builds, and nested signature validation.
+
 ## 1.5.0 — 2026-10-22
 
 - Replace the old manual-grouping backend with an updated native menu bar engine based on Ice/Thaw.

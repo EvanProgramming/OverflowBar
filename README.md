@@ -24,14 +24,16 @@ The second row keeps selected menu bar controls available while leaving their or
 ## Features
 
 - **Choose icons individually.** Select the status items OverflowBar can arrange.
+- **Hide new icons automatically.** Newly appearing eligible items join the saved selection while hiding is enabled.
+- **Retry a layout.** Use the Settings toolbar to reveal the current arrangement and retry hiding without changing the saved selection.
 - **Use the original controls.** Open source-app menus, popovers, and supported toggles.
 - **See live previews.** Screen Recording enables captured previews; app icons remain available without it.
 - **Use the keyboard and recover easily.** Navigate the panel, cancel an operation, reset the selection, or quit to reveal the icons.
 
 ## Installation
 
-1. [Download the v1.5.0 DMG](https://github.com/EvanProgramming/OverflowBar/releases/download/v1.5.0/OverflowBar-1.5.0.dmg) or choose the [latest stable release](https://github.com/EvanProgramming/OverflowBar/releases/latest).
-2. Drag OverflowBar into Applications, then open it. The current DMG is named OverflowBar-1.5.0.dmg.
+1. [Download the v1.5.1 DMG](https://github.com/EvanProgramming/OverflowBar/releases/download/v1.5.1/OverflowBar-1.5.1.dmg) or choose the [latest stable release](https://github.com/EvanProgramming/OverflowBar/releases/latest).
+2. Drag OverflowBar into Applications, then open it. The current DMG is named OverflowBar-1.5.1.dmg.
 3. Follow setup and select the icons you want in the second row.
 
 If you prefer Homebrew, use the verified cask from this repository:
@@ -41,7 +43,7 @@ If you prefer Homebrew, use the verified cask from this repository:
 
 The community build is ad-hoc signed and is not notarized. If macOS blocks an app you downloaded from the official release, follow Apple's [Open Anyway instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
-OverflowBar targets macOS 15 and has a universal Apple silicon and Intel build. The macOS 26.4 release check covered a limited native-fixture workflow; macOS 15 hardware and Intel hardware were not available for physical testing. On macOS 27 and later, native icon management fails open and leaves icons accessible. See [installation and compatibility](docs/INSTALLATION.md) and [release validation](docs/RELEASE_CHECKS_V1.5.md).
+OverflowBar targets macOS 15 and has a universal Apple silicon and Intel build. The v1.5.0 macOS 26.4 release check covered a limited native-fixture workflow; macOS 15 hardware and Intel hardware were not available for physical testing. On macOS 27 and later, native icon management fails open and leaves icons accessible. See [installation and compatibility](docs/INSTALLATION.md) and [release validation](docs/RELEASE_CHECKS_V1.5.1.md).
 
 ## Quick start
 

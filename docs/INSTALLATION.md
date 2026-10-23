@@ -4,11 +4,11 @@
 
 | macOS | Release package | Runtime status |
 |---|---|---|
-| macOS 15 | Universal binary; deployment target 15.0 | No physical macOS 15 machine was available for v1.5.0 acceptance. |
+| macOS 15 | Universal binary; deployment target 15.0 | No physical macOS 15 machine was available for v1.5.1 acceptance. |
 | macOS 26 | Universal binary; deployment target 15.0 | The release audit ran on macOS 26.4. A subset of native-fixture workflows passed; this does not establish the full GUI matrix. |
 | macOS 27 and later | Universal binary; deployment target 15.0 | Source has a fail-open path that leaves icons accessible. macOS 27 runtime behavior was not tested. |
 
-The v1.5.0 release contains both Apple silicon (arm64) and Intel (x86_64) slices. Intel hardware was not available for physical testing.
+The v1.5.1 release contains both Apple silicon (arm64) and Intel (x86_64) slices. Intel hardware was not available for physical testing.
 
 ## Install from GitHub
 
@@ -16,7 +16,7 @@ The v1.5.0 release contains both Apple silicon (arm64) and Intel (x86_64) slices
 2. Open the DMG and drag OverflowBar to Applications.
 3. Open OverflowBar. First launch opens setup; enable Accessibility, optionally enable Screen Recording, and choose icons.
 
-The current DMG is OverflowBar-1.5.0.dmg. Community builds are ad-hoc signed and are not notarized. Only download builds from the official release. If macOS blocks a trusted copy, follow Apple's [Open Anyway instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac). See [Permissions](PERMISSIONS.md) before granting access.
+The current DMG is OverflowBar-1.5.1.dmg. Community builds are ad-hoc signed and are not notarized. Only download builds from the official release. If macOS blocks a trusted copy, follow Apple's [Open Anyway instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac). See [Permissions](PERMISSIONS.md) before granting access.
 
 ## Install with Homebrew
 
@@ -43,4 +43,4 @@ Removing the app is sufficient to uninstall it. Do not delete preferences belong
 
 ## Related guides
 
-[Permissions](PERMISSIONS.md) · [Homebrew](HOMEBREW.md) · [Using OverflowBar](USAGE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Release validation](RELEASE_CHECKS_V1.5.md)
+[Permissions](PERMISSIONS.md) · [Homebrew](HOMEBREW.md) · [Using OverflowBar](USAGE.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Release validation](RELEASE_CHECKS_V1.5.1.md)

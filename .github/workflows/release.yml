@@ -124,6 +124,8 @@ jobs:
             release_title="OverflowBar ${version}"
             if [[ "$version" == "1.5.0" ]]; then
               release_title="OverflowBar 1.5.0 — Native Engine Update"
+            elif [[ "$version" == "1.5.1" ]]; then
+              release_title="OverflowBar 1.5.1 — Automatic Icon Hiding and Retry"
             fi
             gh release create "${GITHUB_REF_NAME}" \
               "${release_assets[@]}" \

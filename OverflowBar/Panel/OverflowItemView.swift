@@ -21,6 +21,7 @@ struct OverflowItemView: View {
                 }
                 else { Image(systemName: item.fallbackSymbolName).resizable().scaledToFit().padding(4).opacity(0.75) }
             }
+            .saturation(0)
             .frame(width: 26, height: 20)
             .padding(3)
             .background {

@@ -55,6 +55,13 @@ struct SettingsView: View {
                     Label("Open OverflowBar", systemImage: "chevron.down.circle")
                 }
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: store.retryHidingSelectedIcons) {
+                    Label("Retry Hiding", systemImage: "arrow.clockwise")
+                }
+                .help("Reveal the menu bar, then retry hiding the selected icons.")
+                .disabled(!permissions.accessibilityGranted || !store.canRetryHiding)
+            }
             ToolbarItem {
                 Menu {
                     Button("Refresh Icons", systemImage: "arrow.clockwise") { store.refresh() }
