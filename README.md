@@ -3,7 +3,7 @@
   <h1>OverflowBar</h1>
   <p><strong>Give your menu bar a second row.</strong></p>
   <p>Move the menu bar icons you choose into a second row, then open their original menus and popovers from one place.</p>
-  <p><a href="https://github.com/EvanProgramming/OverflowBar/releases/latest">Download for macOS</a> · <a href="#quick-start">Quick start</a> · <a href="#documentation">Documentation</a></p>
+  <p><a href="https://overflowbar.top/">Official website</a> · <a href="https://overflowbar.top/guides/mac-menu-bar-managers/">Mac menu bar manager comparison</a> · <a href="https://github.com/EvanProgramming/OverflowBar/releases/latest">Download for macOS</a> · <a href="#quick-start">Quick start</a> · <a href="#documentation">Documentation</a></p>
 </div>
 
 <p align="center">
