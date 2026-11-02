@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" width="100%" role="img" aria-label="OverflowBar hero: a macOS menu bar with a fluid second row beneath it">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0C0C0F"/>
+      <stop offset="1" stop-color="#18181C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="menubar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="capsule" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E3E3E9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="1600" height="400" rx="28" fill="url(#bg)"/>
+  <ellipse cx="800" cy="40" rx="720" ry="300" fill="url(#glow)"/>
+
+  <!-- menu bar -->
+  <rect x="240" y="64" width="1120" height="72" rx="36" fill="url(#menubar)" stroke="#FFFFFF" stroke-opacity="0.10"/>
+
+  <!-- menu bar glyphs (right side) -->
+  <g stroke="#AEB0BA" stroke-width="2.6" fill="none" stroke-linecap="round">
+    <circle cx="1184" cy="100" r="8.5"/>
+    <line x1="1190.5" y1="106.5" x2="1198" y2="114"/>
+    <path d="M1208 98 Q1228 84 1248 98"/>
+    <path d="M1216 104 Q1228 94 1240 104"/>
+  </g>
+  <circle cx="1228" cy="112" r="2.2" fill="#AEB0BA" stroke="none"/>
+  <rect x="1266" y="92" width="22" height="14" rx="4" fill="none" stroke="#AEB0BA" stroke-width="2.6"/>
+  <rect x="1288" y="96" width="3" height="6" rx="1.5" fill="#AEB0BA"/>
+
+  <!-- indicator dot -->
+  <circle cx="340" cy="100" r="5" fill="#FFFFFF"/>
+  <circle cx="340" cy="100" r="1.8" fill="#17171A"/>
+
+  <!-- overflow arrows -->
+  <g stroke="#D0D0D8" stroke-width="2.5" stroke-linecap="round" fill="#D0D0D8">
+    <line x1="644" y1="152" x2="644" y2="200"/>
+    <path d="M644 208 L638 198 L650 198 Z"/>
+    <line x1="800" y1="152" x2="800" y2="200"/>
+    <path d="M800 208 L794 198 L806 198 Z"/>
+    <line x1="956" y1="152" x2="956" y2="200"/>
+    <path d="M956 208 L950 198 L962 198 Z"/>
+  </g>
+
+  <!-- second row capsule -->
+  <rect x="570" y="216" width="460" height="96" rx="48" fill="url(#capsule)" stroke="#FFFFFF" stroke-opacity="0.55"/>
+
+  <!-- icon 1: app grid -->
+  <rect x="618" y="238" width="52" height="52" rx="14" fill="#17171A"/>
+  <g fill="#E4E4EA">
+    <rect x="637" y="258" width="6" height="6" rx="1.5"/>
+    <rect x="646" y="258" width="6" height="6" rx="1.5"/>
+    <rect x="637" y="267" width="6" height="6" rx="1.5"/>
+    <rect x="646" y="267" width="6" height="6" rx="1.5"/>
+  </g>
+
+  <!-- icon 2: close / X -->
+  <rect x="696" y="238" width="52" height="52" rx="14" fill="#17171A"/>
+  <g stroke="#E4E4EA" stroke-width="3" stroke-linecap="round">
+    <line x1="710" y1="252" x2="734" y2="276"/>
+    <line x1="734" y1="252" x2="710" y2="276"/>
+  </g>
+
+  <!-- icon 3: activity -->
+  <rect x="774" y="238" width="52" height="52" rx="14" fill="#17171A"/>
+  <polyline points="788,264 796,264 802,254 808,274 814,264 820,264" fill="none" stroke="#E4E4EA" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- icon 4: pen -->
+  <rect x="852" y="238" width="52" height="52" rx="14" fill="#17171A"/>
+  <line x1="866" y1="276" x2="890" y2="252" stroke="#E4E4EA" stroke-width="3" stroke-linecap="round"/>
+  <path d="M890 252 L883 256 L887 260 Z" fill="#E4E4EA"/>
+
+  <!-- icon 5: monitor -->
+  <rect x="930" y="238" width="52" height="52" rx="14" fill="#17171A"/>
+  <g stroke="#E4E4EA" stroke-width="3" stroke-linecap="round">
+    <rect x="946" y="257" width="20" height="13" rx="3" fill="none"/>
+    <line x1="956" y1="270" x2="956" y2="277"/>
+    <line x1="949" y1="278" x2="963" y2="278"/>
+  </g>
+</svg>

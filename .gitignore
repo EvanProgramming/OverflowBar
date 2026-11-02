@@ -6,3 +6,4 @@ DerivedData/
 /dist/
 /.ci-build/
 /.ci-release/
+/README.preview.html
