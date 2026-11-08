@@ -96,6 +96,22 @@ final class MenuBarItemStoreTests: XCTestCase {
         XCTAssertTrue(preferences.layoutManagementEnabled)
     }
 
+    func testUnsupportedSystemDisablesSavedLayoutWithoutReentrantCancellation() {
+        let (preferences, suite) = makePreferences()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        preferences.selectedNativeItems = ["selected"]
+        preferences.layoutManagementEnabled = true
+        let engine = StoreTestEngine(items: [])
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: false)
+        store.onLayoutStateChanged = { store.setLayoutManagementEnabled(false) }
+        store.setLayoutManagementEnabled(false)
+        store.setLayoutManagementEnabled(true)
+        XCTAssertFalse(store.layoutManagementEnabled)
+        XCTAssertFalse(preferences.layoutManagementEnabled)
+        XCTAssertFalse(store.groupHidden)
+        XCTAssertTrue(engine.appliedSelections.isEmpty)
+    }
+
     private func makePreferences() -> (PreferencesStore, String) {
         let suite = "OverflowBarTests.\(UUID().uuidString)"
         return (PreferencesStore(defaults: UserDefaults(suiteName: suite)!), suite)
