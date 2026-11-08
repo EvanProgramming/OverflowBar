@@ -14,7 +14,6 @@ import Combine
     private let preferences: PreferencesStore
     private let engine: MenuBarEngine
     private let supportsHiding: Bool
-    private var disablingUnsupportedLayout = false
     private var records: [String: EngineItemRecord] = [:]
     private var dividerFrame: CGRect?
     private var refreshTask: Task<Void, Never>?
@@ -147,16 +146,14 @@ import Combine
         preferences.layoutManagementEnabled = layoutManagementEnabled
         automaticManagementSuspended = !layoutManagementEnabled
         if layoutManagementEnabled || groupHidden { applyLayout(automatic: false) }
-        else { layoutOperationMessage = "Choose the icons to place in the second row." }
+        else { layoutOperationMessage = supportsHiding ? "Choose the icons to place in the second row." : "Hiding icons is unavailable on this macOS version." }
     }
     func setLayoutManagementEnabled(_ enabled: Bool) {
         if !supportsHiding {
-            guard !disablingUnsupportedLayout else { return }
-            disablingUnsupportedLayout = true
-            defer { disablingUnsupportedLayout = false }
             layoutManagementEnabled = false
             preferences.layoutManagementEnabled = false
-            cancelOperation()
+            automaticManagementSuspended = true
+            layoutOperationMessage = "Hiding icons is unavailable on this macOS version."
             return
         }
         if !enabled { cancelOperation() }
