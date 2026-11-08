@@ -9,7 +9,7 @@ final class MenuBarItemStoreTests: XCTestCase {
         defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
         preferences.layoutManagementEnabled = true
         let engine = StoreTestEngine(items: [item("existing")])
-        let store = MenuBarItemStore(preferences: preferences, engine: engine)
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: true)
 
         store.refresh()
         await waitUntil { preferences.knownNativeItems != nil }
@@ -25,7 +25,7 @@ final class MenuBarItemStoreTests: XCTestCase {
         preferences.layoutManagementEnabled = true
         preferences.verifiedNativeOrder = ["existing"]
         let engine = StoreTestEngine(items: [item("existing"), item("new")])
-        let store = MenuBarItemStore(preferences: preferences, engine: engine)
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: true)
 
         store.refresh()
         await waitUntil { engine.appliedSelections.count == 1 }
@@ -36,7 +36,7 @@ final class MenuBarItemStoreTests: XCTestCase {
         XCTAssertEqual(engine.appliedSelections, [["new"]])
 
         let relaunchedEngine = StoreTestEngine(items: [item("existing"), item("new")])
-        let relaunchedStore = MenuBarItemStore(preferences: preferences, engine: relaunchedEngine)
+        let relaunchedStore = MenuBarItemStore(preferences: preferences, engine: relaunchedEngine, supportsHiding: true)
         relaunchedStore.refresh()
         await waitUntil { relaunchedStore.items.count == 2 }
         XCTAssertTrue(relaunchedEngine.appliedSelections.isEmpty)
@@ -46,7 +46,7 @@ final class MenuBarItemStoreTests: XCTestCase {
         let (preferences, suite) = makePreferences()
         defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
         let engine = StoreTestEngine(items: [item("existing")])
-        let store = MenuBarItemStore(preferences: preferences, engine: engine)
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: true)
         store.refresh()
         await waitUntil { preferences.knownNativeItems != nil }
 
@@ -63,7 +63,7 @@ final class MenuBarItemStoreTests: XCTestCase {
         defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
         preferences.layoutManagementEnabled = true
         let engine = StoreTestEngine(items: [item("existing")])
-        let store = MenuBarItemStore(preferences: preferences, engine: engine)
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: true)
         store.refresh()
         await waitUntil { preferences.knownNativeItems != nil }
 
@@ -83,7 +83,7 @@ final class MenuBarItemStoreTests: XCTestCase {
         preferences.layoutManagementEnabled = true
         let engine = StoreTestEngine(items: [])
         engine.waitForCancel = true
-        let store = MenuBarItemStore(preferences: preferences, engine: engine)
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: true)
 
         store.setLayoutManagementEnabled(true)
         await waitUntil { engine.applyCount == 1 }
@@ -94,6 +94,26 @@ final class MenuBarItemStoreTests: XCTestCase {
         XCTAssertEqual(engine.maximumConcurrentApplies, 1)
         XCTAssertEqual(preferences.selectedNativeItems, ["selected"])
         XCTAssertTrue(preferences.layoutManagementEnabled)
+    }
+
+    func testUnsupportedSystemDisablesSavedLayoutWithoutReentrantCancellation() {
+        let (preferences, suite) = makePreferences()
+        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        preferences.selectedNativeItems = ["selected"]
+        preferences.layoutManagementEnabled = true
+        let engine = StoreTestEngine(items: [])
+        let store = MenuBarItemStore(preferences: preferences, engine: engine, supportsHiding: false)
+        store.onLayoutStateChanged = { store.setLayoutManagementEnabled(false) }
+        engine.visibility?(false)
+        store.setLayoutManagementEnabled(false)
+        store.setLayoutManagementEnabled(true)
+        store.configureSelection(["selected"], hideSelectedIcons: true)
+        XCTAssertEqual(engine.cancelCount, 0)
+        XCTAssertEqual(store.layoutOperationMessage, "Hiding icons is unavailable on this macOS version.")
+        XCTAssertFalse(store.layoutManagementEnabled)
+        XCTAssertFalse(preferences.layoutManagementEnabled)
+        XCTAssertFalse(store.groupHidden)
+        XCTAssertTrue(engine.appliedSelections.isEmpty)
     }
 
     private func makePreferences() -> (PreferencesStore, String) {
@@ -123,6 +143,7 @@ private final class StoreTestEngine: MenuBarEngine {
     private(set) var maximumConcurrentApplies = 0
     private var activeApplies = 0
     var waitForCancel = false
+    private(set) var cancelCount = 0
     private var applyContinuation: CheckedContinuation<Void, Never>?
     var visibility: ((Bool) -> Void)?
     var message: ((String) -> Void)?
@@ -142,5 +163,5 @@ private final class StoreTestEngine: MenuBarEngine {
     }
     func capture(_ items: [EngineItemRecord]) async -> [EngineCaptureFrame] { [] }
     func activate(_ id: String, button: CGMouseButton) async -> MenuBarActivationResult { .activated }
-    func cancel() { applyContinuation?.resume(); applyContinuation = nil; visibility?(false) }
+    func cancel() { cancelCount += 1; applyContinuation?.resume(); applyContinuation = nil; visibility?(false) }
 }

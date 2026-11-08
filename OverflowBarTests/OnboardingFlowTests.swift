@@ -43,7 +43,7 @@ final class OnboardingFlowTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let preferences = PreferencesStore(defaults: defaults)
-        let store = MenuBarItemStore(preferences: preferences)
+        let store = MenuBarItemStore(preferences: preferences, supportsHiding: true)
 
         OnboardingCompletion.finish(selectedIDs: ["menu-item-1", "menu-item-2"], hideSelectedIcons: false).apply(to: store)
 
@@ -60,7 +60,7 @@ final class OnboardingFlowTests: XCTestCase {
         let preferences = PreferencesStore(defaults: defaults)
         preferences.selectedNativeItems = ["previously-hidden"]
         preferences.layoutManagementEnabled = true
-        let store = MenuBarItemStore(preferences: preferences)
+        let store = MenuBarItemStore(preferences: preferences, supportsHiding: true)
 
         OnboardingCompletion.setUpLater.apply(to: store)
 

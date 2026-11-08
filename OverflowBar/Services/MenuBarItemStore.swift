@@ -13,6 +13,7 @@ import Combine
     @Published private(set) var selectedIDs: [String]
     private let preferences: PreferencesStore
     private let engine: MenuBarEngine
+    private let supportsHiding: Bool
     private var records: [String: EngineItemRecord] = [:]
     private var dividerFrame: CGRect?
     private var refreshTask: Task<Void, Never>?
@@ -32,11 +33,13 @@ import Combine
     private var observers: [NSObjectProtocol] = []
     private var timer: Timer?
     var onLayoutStateChanged: (() -> Void)?
-    init(preferences: PreferencesStore = PreferencesStore(), engine: MenuBarEngine? = nil) {
+    init(preferences: PreferencesStore = PreferencesStore(), engine: MenuBarEngine? = nil, supportsHiding: Bool = MenuBarGroupGeometry.supportsHiding(osMajorVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)) {
         self.preferences = preferences
+        self.supportsHiding = supportsHiding
         self.engine = engine ?? NativeMenuBarEngine()
         selectedIDs = preferences.selectedNativeItems
-        layoutManagementEnabled = preferences.layoutManagementEnabled
+        layoutManagementEnabled = supportsHiding && preferences.layoutManagementEnabled
+        if !supportsHiding { preferences.layoutManagementEnabled = false }
         self.engine.visibility = { [weak self] hidden in
             self?.groupHidden = hidden; self?.onLayoutStateChanged?()
         }
@@ -139,13 +142,20 @@ import Combine
         guard layoutTask == nil, operationProgress == nil else { return }
         selectedIDs = ids
         preferences.selectedNativeItems = ids
-        layoutManagementEnabled = hideSelectedIcons && !ids.isEmpty
+        layoutManagementEnabled = supportsHiding && hideSelectedIcons && !ids.isEmpty
         preferences.layoutManagementEnabled = layoutManagementEnabled
         automaticManagementSuspended = !layoutManagementEnabled
         if layoutManagementEnabled || groupHidden { applyLayout(automatic: false) }
-        else { layoutOperationMessage = "Choose the icons to place in the second row." }
+        else { layoutOperationMessage = supportsHiding ? "Choose the icons to place in the second row." : "Hiding icons is unavailable on this macOS version." }
     }
     func setLayoutManagementEnabled(_ enabled: Bool) {
+        if !supportsHiding {
+            layoutManagementEnabled = false
+            preferences.layoutManagementEnabled = false
+            automaticManagementSuspended = true
+            layoutOperationMessage = "Hiding icons is unavailable on this macOS version."
+            return
+        }
         if !enabled { cancelOperation() }
         layoutManagementEnabled = enabled && !selectedIDs.isEmpty
         automaticManagementSuspended = !layoutManagementEnabled
@@ -153,6 +163,7 @@ import Combine
         applyLayout(automatic: false)
     }
     private func applyLayout(automatic: Bool) {
+        guard supportsHiding else { return }
         guard layoutTask == nil else { layoutOperationMessage = "A layout operation is already running. Cancel it before changing selection."; return }
         operationProgress = "Finding menu bar icons"
         let selection = selectedIDs
